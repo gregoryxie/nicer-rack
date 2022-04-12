@@ -1,5 +1,5 @@
 """
-Creates SQLite3 server that stores (timestamp,title,length,link,filepath,thumbnail_filepath).
+Creates SQLite3 server that stores (timestamp,title,length,link,filepath,thumbnail).
 Allows for lookup, insertion, deletion, clearing.
 Should not store songs longer than MAX_LENGTH
 """
@@ -13,23 +13,28 @@ MAX_LENGTH = 10 # maximum supported video length in minutes
 def dto(dt_str):
     return datetime.datetime.strptime(dt_str,'%Y-%m-%d %H:%M:%S.%f')
 
-# title string, length int (sec), link string, filepath string, thumbnail string (also filepath?)
+# title string, length int (sec), link string, filepath string, thumbnail string
 def insert_data(title, length, link, filepath, thumbnail=""):
-    if length > 60 * MAX_LENGTH:
-        return "Too long to be stored."
-    timestamp = datetime.datetime.now()
-    with sqlite3.connect(info_db) as c:
-        c.execute("""CREATE TABLE IF NOT EXISTS info_db (time_ timestamp, title text, length real, link text, filepath text, thumbnail text);""")
-        c.execute('''INSERT into info_db VALUES (?,?,?,?,?);''',(timestamp,title,length,link, filepath, thumbnail))
-    return "Data inserted."
+    if length > 60 * MAX_LENGTH or link[:20]!="youtube.com/watch?v=":
+        return False
+    if not retrieve_data(link):
+        timestamp = datetime.datetime.now()
+        with sqlite3.connect(info_db) as c:
+            c.execute("""CREATE TABLE IF NOT EXISTS info_db (time_ timestamp, title text, length real, link text, filepath text, thumbnail text);""")
+            c.execute('''INSERT into info_db VALUES (?,?,?,?,?);''',(timestamp,title,length,link, filepath, thumbnail))
+    return True
 
+# given link: return row data, if exists
 def retrieve_data(link):
-    pass
+    with sqlite3.connect(info_db) as c:
+        current = c.execute('''SELECT * FROM info_db WHERE link=;''',(link)).fetchall()
+    return current
 
+# clear data entries older than timestamp given
 def remove_old_data(timestamp):
     with sqlite3.connect(info_db) as c:
         c.execute("""CREATE TABLE IF NOT EXISTS info_db (time_ timestamp, title text, length real, link text, filepath text, thumnbnail text);""")
-        c.execute('''DELETE * FROM ht_db WHERE time_>=?;''',(timestamp))
+        c.execute('''DELETE * FROM info_db WHERE time_<=?;''',(timestamp))
     return "Old data deleted."
 
 # should this function even exist? feels dangerous
