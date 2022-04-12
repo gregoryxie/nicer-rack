@@ -77,10 +77,16 @@ def remove_timeout_esp():
 
 def send_data_esp(data):
    data_bytes = int_array_to_bytes(data, 2)
-   # print(data_bytes)
    with socket_lock:
       for client_addr in esp_sockets.keys():
          sock = esp_sockets[client_addr]['socket']
+         start = esp_sockets[client_addr]['song_i']
+
+         if esp_sockets[client_addr]['state'] == 1 or esp_sockets[client_addr]['state'] == 2:
+            # ESP wants to pause stream
+            continue
+         print(f"send: {len(data_bytes)}, {client_addr}")
+         
          sock.sendto(data_bytes, client_addr)
          # print(f"sent to {client_addr}")
 
@@ -128,7 +134,7 @@ def int_array_to_bytes(data, len=2):
    return data_clip.astype(np.dtype('>i2')).tobytes()
 
 if __name__ == "__main__":
-   curr_song = int_array_to_bytes(np.random.randint(48, 500, size=(20000)))
+   # curr_song = int_array_to_bytes(np.random.randint(48, 500, size=(20000)))
 
    server = socketserver.ThreadingUDPServer((HOST, PORT), MusicRequestHandler)
    with server:
@@ -139,7 +145,7 @@ if __name__ == "__main__":
       start = datetime.now()
 
       count = 0
-      input("press to start")
+      # input("press to start")
       while True:
          while (datetime.now() - start).total_seconds() < loop_time:
             time.sleep(loop_time/20)
@@ -155,13 +161,13 @@ if __name__ == "__main__":
          remove_timeout_esp()
 
          # send batch of music to all connected ESP32S
-         done = np.prod(send_song_segment_esp(1000))
-         if done:
-            print("Finished sending song")
+         # done = np.prod(send_song_segment_esp(1000))
+         # if done:
+         #    print("Finished sending song")
             # reset_song_i()
             # go to next song
 
-         # data = np.random.randint(48, 500, size=(500))
-         # send_data_esp(data)
+         data = np.random.randint(48, 500, size=(500))
+         send_data_esp(data)
 
 
