@@ -9,8 +9,10 @@ const char PASSWORD[] = "";
 
 WiFiUDP udp;
 const int udp_port = 3333;
-IPAddress remote = IPAddress(10, 31, 69, 31);
+IPAddress remote = IPAddress(10, 31, 54, 238);
 const int remote_port = 56971;
+
+int packet_count = 0;
 
 
 const int AUDIO_BUF_SIZE = 44000;
@@ -51,12 +53,13 @@ void setup() {
    }
 
    count = 0;
-   Serial.printf("Starting UDP, port: %d", udp_port);
+   Serial.printf("Starting UDP, port: %d\r\n", udp_port);
    while (udp.begin(WiFi.localIP(),udp_port) != 1 && count < 12) {
       delay(500);
       Serial.print(".");
       count++;
    }
+   Serial.println("UDP Connected!");
    delay(100);
    start_stream();
 }
@@ -97,14 +100,16 @@ void loop() {
 
    switch (state) {
       case Started:
-         if (audio_buffer.room() < 2*TRANSFER_BUF_SIZE) {
+         if (audio_buffer.room() < 10*TRANSFER_BUF_SIZE) {
             pause_stream();
+            Serial.println("PAUSING!!!");
+            Serial.println(audio_buffer.room());
             state = Paused;
          }
          break;
 
       case Paused:
-         if (audio_buffer.room() > 4*TRANSFER_BUF_SIZE) {
+         if (audio_buffer.room() > 15*TRANSFER_BUF_SIZE) {
             start_stream();
             state = Started;
          }
@@ -120,19 +125,21 @@ void loop() {
    // Takes ~200 us to do this stuff
    int packetSize = udp.parsePacket();
    if (packetSize) {
+      packet_count++;
       int len = udp.read(transfer_buffer, TRANSFER_BUF_SIZE); // Number of bytes read
       audio_buffer.write(transfer_buffer, len);
-      // Serial.printf("%d\r\n", len);
+      // Serial.printf("recv: %d\r\n", len);
+      Serial.printf("%d\r\n", packet_count);
    }
 
-   if (audio_buffer.available() > 0) {
-      int read = audio_buffer.read(transfer_buffer, TRANSFER_BUF_SIZE-1);
-      transfer_buffer[read] = 0;
-      // Serial.printf("%d\r\n", read);
-      // print_buf_ints(read);
+  //  if (audio_buffer.available() > 0) {
+  //     int read = audio_buffer.read(transfer_buffer, TRANSFER_BUF_SIZE-1);
+  //     transfer_buffer[read] = 0;
+  //     Serial.printf("read: %d\r\n", read);
+  //     // print_buf_ints(read);
       
-   }
+  //  }
    // Serial.printf("%d\r\n", audio_buffer.room());
-   Serial.println(micros() - start);
-   delay(50);
+   // Serial.println(micros() - start);
+   delay(3);
 }
