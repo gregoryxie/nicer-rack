@@ -26,7 +26,7 @@ def extract_link_data(link):
         return None
 
     title = vid.title
-    duration = float(vid.length)
+    duration = int(vid.length)
     thumbnail = vid.thumbnail_url
 
     # Extract only audio from the video, and download to audio_files directory
