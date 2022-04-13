@@ -5,6 +5,8 @@ store information in the database.
 import os
 import pytube
 
+MAX_LENGTH = 10 # maximum supported video length in minutes
+
 def extract_link_data(link):
     """Extracts the title, duration in seconds, stripped YouTube link, 
     and thumbnail url, and downloads audio from link. 
@@ -28,6 +30,9 @@ def extract_link_data(link):
     title = vid.title
     duration = int(vid.length)
     thumbnail = vid.thumbnail_url
+    # Do not download if duration of video is too long
+    if duration > 60 * MAX_LENGTH:
+        return None
 
     # Extract only audio from the video, and download to audio_files directory
     audio = vid.streams.filter(only_audio=True).first()
