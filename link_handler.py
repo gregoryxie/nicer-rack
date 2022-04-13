@@ -18,6 +18,10 @@ def extract_link_data(link):
     try:
         vid = pytube.YouTube(yt_link)
         vid.check_availability()
+
+        # Extract filename of the mp3 as the url query argument,
+        # as unique for each video, unlike titles
+        filename = yt_link.split("watch?v=",1)[1]
     except:
         return None
 
@@ -27,13 +31,13 @@ def extract_link_data(link):
 
     # Extract only audio from the video, and download to audio_files directory
     audio = vid.streams.filter(only_audio=True).first()
-    audio_file = audio.download(output_path="./audio_files/")
+    audio_file = audio.download(output_path="./audio_files/", filename=filename)
 
-    #Save the file as .mp3, extract relative filepath
+    #Save the file as .mp3, define relative filepath to return
     base, ext = os.path.splitext(audio_file)
     abs_filepath = base + '.mp3'
     os.rename(audio_file, abs_filepath)
-    filepath = "./audio_files/{}.mp3".format(title)
+    filepath = "./audio_files/{}.mp3".format(filename)
 
     return (title, duration, yt_link, filepath, thumbnail)
 
