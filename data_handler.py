@@ -1,5 +1,5 @@
 """
-Creates SQLite3 server that stores (timestamp,title,length,link,filepath,thumbnail_filepath).
+Creates SQLite3 server that stores (timestamp,title,length,link,filepath,thumbnail).
 Allows for lookup, insertion, deletion, clearing.
 Should not store songs longer than MAX_LENGTH
 """
@@ -7,31 +7,82 @@ Should not store songs longer than MAX_LENGTH
 import sqlite3
 import datetime
 
-info_db = '/data/file_info.db'
+info_db = 'file_info.db'
 MAX_LENGTH = 10 # maximum supported video length in minutes
 
 def dto(dt_str):
     return datetime.datetime.strptime(dt_str,'%Y-%m-%d %H:%M:%S.%f')
 
-# title string, length int (sec), link string, filepath string, thumbnail string (also filepath?)
+# return true if put in database/already in database, false if cannot
+# title string, length int (sec), link string, filepath string, thumbnail string
 def insert_data(title, length, link, filepath, thumbnail=""):
-    if length > 60 * MAX_LENGTH:
-        return "Too long to be stored."
-    timestamp = datetime.datetime.now()
-    with sqlite3.connect(info_db) as c:
-        c.execute("""CREATE TABLE IF NOT EXISTS info_db (time_ timestamp, title text, length real, link text, filepath text, thumbnail text);""")
-        c.execute('''INSERT into info_db VALUES (?,?,?,?,?);''',(timestamp,title,length,link, filepath, thumbnail))
-    return "Data inserted."
+    if length > 60 * MAX_LENGTH or link[:20]!="youtube.com/watch?v=":
+        return False
+    if not retrieve_data(link):
+        timestamp = datetime.datetime.now()
+        with sqlite3.connect(info_db) as c:
+            c.execute("""CREATE TABLE IF NOT EXISTS info_db (time_ timestamp, title text, length real, link text, filepath text, thumbnail text);""")
+            c.execute('''INSERT into info_db VALUES (?,?,?,?,?,?);''',(timestamp,title,length,link, filepath, thumbnail,))
+    return True
 
+# given link: return row data as tuple if exists, else None
 def retrieve_data(link):
-    pass
+    with sqlite3.connect(info_db) as c:
+        c.execute("""CREATE TABLE IF NOT EXISTS info_db (time_ timestamp, title text, length real, link text, filepath text, thumnbnail text);""")
+        current = c.execute('''SELECT * FROM info_db WHERE link=?;''',(link,)).fetchone()
+    return current
 
+# given link: deletes row data, if exists. returns TUPLE of mp3 filepath of deleted entry.
+def delete_data(link):
+    with sqlite3.connect(info_db) as c:
+        c.execute("""CREATE TABLE IF NOT EXISTS info_db (time_ timestamp, title text, length real, link text, filepath text, thumnbnail text);""")
+        out = c.execute('''SELECT filepath FROM info_db WHERE link=?;''',(link,)).fetchone()
+        c.execute('''DELETE FROM info_db WHERE link=?;''',(link,))
+        return out
+
+# clear data entries older than timestamp given, if exists. returns TUPLE of mp3 filepaths of deleted entries.
 def remove_old_data(timestamp):
     with sqlite3.connect(info_db) as c:
         c.execute("""CREATE TABLE IF NOT EXISTS info_db (time_ timestamp, title text, length real, link text, filepath text, thumnbnail text);""")
-        c.execute('''DELETE * FROM ht_db WHERE time_>=?;''',(timestamp))
-    return "Old data deleted."
+        out = c.execute('''SELECT filepath FROM info_db WHERE time_<=?;''',(timestamp,)).fetchall()
+        c.execute('''DELETE FROM info_db WHERE time_<=?;''',(timestamp,))
+        return [x[0] for x in out]
+
+# returns size of table as int
+def check_size():
+    with sqlite3.connect(info_db) as c:
+        c.execute("""CREATE TABLE IF NOT EXISTS info_db (time_ timestamp, title text, length real, link text, filepath text, thumnbnail text);""")
+        return c.execute('''SELECT COUNT(*) FROM info_db;''').fetchone()[0]
 
 # should this function even exist? feels dangerous
 def clear_db():
-    pass
+    with sqlite3.connect(info_db) as c:
+        c.execute("""CREATE TABLE IF NOT EXISTS info_db (time_ timestamp, title text, length real, link text, filepath text, thumnbnail text);""")
+        c.execute('''DELETE FROM info_db;''')
+
+
+if __name__ == "__main__":
+    # TESTING ONLY
+    chicken_attack = ("Chicken Attack", 237, "youtube.com/watch?v=miomuSGoPzI", "/audio_files/miomuSGoPzI", "")
+    chicken_attack_remix = ("Chicken Attack Remix [official] (not cluckbait)", 170, "youtube.com/watch?v=h2pe01hEwUg", "/audio_files/h2pe01hEwUg")
+    new_rules = ("New Rules", 224, "youtube.com/watch?v=k2qgadSvNyU", "/audio_files/k2qgadSvNyU", "")
+    
+    # insert, check size, retrieve data, delete data, check size again
+    if insert_data(*chicken_attack):
+        print("Current size after inserting: ",check_size())
+    print(retrieve_data(chicken_attack[2]))
+    print(delete_data(chicken_attack[2]))
+    print("Size after adding and deleting: ",check_size())
+
+    # insert 3 new entries, check size, insert duplicate, check size, delete entry, retrieve entry, retrieve non-existent entry
+    insert_data(*chicken_attack)
+    insert_data(*new_rules)
+    insert_data(*chicken_attack_remix)
+    print("Size after inserting 3 rows: ",check_size())
+    insert_data(*chicken_attack)
+    print("Size after inserting duplicate: ",check_size())
+    print(delete_data(new_rules[2]))
+    print(retrieve_data(chicken_attack[2]))
+    print(retrieve_data(new_rules[2]))
+    print(remove_old_data(datetime.datetime.now()))
+    print("Size after removing all previous data: ", check_size())
