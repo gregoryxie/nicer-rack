@@ -1,6 +1,9 @@
 import React from "react";
 import { useState, useEffect } from "react";
 
+import "../../utilities.css";
+import "./Search.css";
+
 /**
  * Search Box.
  */
@@ -19,19 +22,22 @@ const Search = () => {
   function handleSubmit(event) {
     event.preventDefault();
     setSearchValue(searchBuffer); // set the current bio to whatever is in the bioBuffer
-    console.log(searchValue);
+    console.log(searchBuffer); 
   }
 
   return (
-    <>
+    <div className="Search-container">
       <input
+        className="Search-bar-container"
         type="text"
         placeholder={SEARCH_ENTRY_DEFAULT_TEXT}
         value={searchBuffer}
         onChange={handleChange}
       ></input>
-      <button onClick={handleSubmit}>submit</button>
-    </>
+      <button onClick={handleSubmit} className="Submit-container">
+        <i class="fa fa-search"></i>
+      </button>
+    </div>
   );
 };
 
