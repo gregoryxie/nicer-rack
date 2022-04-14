@@ -1,5 +1,5 @@
 {
-  "name": "catbook-react",
+  "name": "nicer-rack",
   "version": "1.0.0",
   "description": "",
   "main": "server/server.js",
@@ -9,14 +9,14 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/mit6148-workshops/catbook-react.git"
+    "url": "git+https://github.com/gregoryxie/nicer-rack"
   },
   "author": "",
   "license": "ISC",
   "bugs": {
-    "url": "https://github.com/mit6148-workshops/catbook-react/issues"
+    "url": "https://github.com/gregoryxie/nicer-rack/issues"
   },
-  "homepage": "https://github.com/mit6148-workshops/catbook-react#readme",
+  "homepage": "https://github.com/gregoryxie/nicer-rack#readme",
   "engines": {
     "node": ">=12.0.0"
   },
