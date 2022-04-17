@@ -48,7 +48,7 @@ esp_err_t initI2S() {
       .sample_rate =  I2S_SAMPLE_RATE,
       .bits_per_sample = (i2s_bits_per_sample_t) 16,
       .channel_format = I2S_CHANNEL_FMT_ALL_RIGHT,
-      .communication_format = I2S_COMM_FORMAT_STAND_I2S,
+      .communication_format = I2S_COMM_FORMAT_STAND_I2S, // for amazon PCM5102 DAC
       .intr_alloc_flags = 0,
       .dma_buf_count = I2S_BUF_COUNT,
       .dma_buf_len = 1024,    // number of samples, 1024 seems to be the max
