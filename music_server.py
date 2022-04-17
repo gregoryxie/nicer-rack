@@ -16,7 +16,7 @@ esp_sockets = {} # client_address: {'socket': socket, 'last_seen': datetime, 'st
 esp_timeout = 120 # seconds
 
 samples_per_second = 44000
-loop_time = 1/100
+loop_time = 1/1000
 song_rate = 1.1   # Rate at which song is streamed, should be > 1
 samples_per_loop = math.ceil(loop_time*samples_per_second*song_rate)
 
@@ -33,7 +33,7 @@ class MusicRequestHandler(socketserver.BaseRequestHandler):
    def handle(self):
       # self.request = (data, socket)
 
-      # print("GOT")
+      print("GOT")
 
       data = self.request[0]
       int_data = int.from_bytes(data, "big")
@@ -111,8 +111,9 @@ def send_song_segment_esp(n_bytes):
             esp_sockets[client_addr]['song_i'] += n_bytes
             done.append(False)
 
+         if len(data_bytes) > 2:
+            print(f"{data_bytes[0]}, {data_bytes[1]}")
          print(f"send: {len(data_bytes)}, {client_addr}")
-         
          sock.sendto(data_bytes, client_addr)
          # print(f"sent to {client_addr}")
    return done
@@ -129,12 +130,21 @@ def int_array_to_bytes(data, len=2):
             (-2**(len-1), 2**(len-1)-1)
    
    """
+
+   # data_clip = np.clip(data, -2**(len*8-1), 2**(len*8-1)-1)
+
+   out = [i.to_bytes(2, byteorder='big') for i in data]
+   out = [item for sub in out for item in sub]
+   return bytes(out)
    data_clip = np.clip(data, -2**(len*8-1), 2**(len*8-1)-1)
    # print(data_clip)
    return data_clip.astype(np.dtype('>i2')).tobytes()
 
 if __name__ == "__main__":
-   # curr_song = int_array_to_bytes(np.random.randint(48, 500, size=(20000)))
+   x_axis = np.linspace(0, 10000*2*np.pi, 44000)
+   # curr_song = int_array_to_bytes(2**14*np.sin(x_axis))
+   # curr_song = int_array_to_bytes(np.ones(44000, dtype=np.int16)*-8)
+   curr_song = bytes([0, 64]*22000)
 
    server = socketserver.ThreadingUDPServer((HOST, PORT), MusicRequestHandler)
    with server:
@@ -161,13 +171,13 @@ if __name__ == "__main__":
          remove_timeout_esp()
 
          # send batch of music to all connected ESP32S
-         # done = np.prod(send_song_segment_esp(1000))
-         # if done:
-         #    print("Finished sending song")
-            # reset_song_i()
+         done = np.prod(send_song_segment_esp(1000))
+         if done:
+            # print("Finished sending song")
+            reset_song_i()
             # go to next song
 
-         data = np.random.randint(48, 500, size=(500))
-         send_data_esp(data)
+         # data = np.random.randint(48, 500, size=(500))
+         # send_data_esp(data)
 
 
