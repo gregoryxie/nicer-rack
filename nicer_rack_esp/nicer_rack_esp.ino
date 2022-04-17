@@ -25,7 +25,7 @@ char transfer_buffer[TRANSFER_BUF_SIZE];           // Buffer to transfer audio d
 
 static const i2s_port_t I2S_NUM = I2S_NUM_0;    // ESP32S2 only has 1 I2S peripheral
 static const uint32_t I2S_SAMPLE_RATE = 44100;
-static const uint8_t I2S_BUF_COUNT = 8;
+static const uint8_t I2S_BUF_COUNT = 4;
 static const int I2S_MCK_IO = GPIO_NUM_6;       // I2S pin definitions
 static const int I2S_BCK_IO = GPIO_NUM_4;
 static const int I2S_WS_IO = GPIO_NUM_2;
@@ -37,10 +37,12 @@ enum StreamStates{Started, Paused, Stopped};       // States for state machine
 enum StreamStates state;
 
 unsigned long time_last_heartbeat = 0;
-int heartbeat_period_ms = 1000;        // Heardbeat message period (send state)
+int heartbeat_period_ms = 10000;        // Heardbeat message period (send state)
 
 unsigned long time_last_loop = 0;
-int loop_period_us = 10000;
+int loop_period_us = 5000;
+
+unsigned long last = 0;
 
 esp_err_t initI2S() {
    i2s_config_t i2s_config = {
@@ -53,6 +55,8 @@ esp_err_t initI2S() {
       .dma_buf_count = I2S_BUF_COUNT,
       .dma_buf_len = 1024,    // number of samples, 1024 seems to be the max
       .use_apll = 1,
+      // .tx_desc_auto_clear = 1,   // supposed to clear DMA TX buffers once they're used, but seems to ruin a lot of stuff
+                                    // DAC output goes to 0 even with constant commands
    };
 
    i2s_pin_config_t i2s_pin_cfg = {
@@ -128,7 +132,7 @@ void setup() {
       xQueueSend(i2s_queue_handle, &tx_done, portMAX_DELAY);
    }
 
-   audio_buffer.flush();
+   // audio_buffer.flush();
 
    start_stream();
 }
@@ -161,7 +165,9 @@ void print_buf_ints(int len) {
 void loop() {
    // Heartbeat to server
 
-   while (micros() - time_last_loop < loop_period_us) {delayMicroseconds(500);}
+   time_last_loop = micros();
+
+   // while (micros() - time_last_loop < loop_period_us) {delayMicroseconds(500);}
 
    if (millis() - time_last_heartbeat > heartbeat_period_ms) {
       time_last_heartbeat = millis();
@@ -174,7 +180,7 @@ void loop() {
       case Started:
          if (audio_buffer.room() < 10*TRANSFER_BUF_SIZE) {
             pause_stream();
-            // Serial.println("PAUSING!!!");
+            // Serial.println("p");
             // Serial.println(audio_buffer.room());
             state = Paused;
          }
@@ -183,6 +189,7 @@ void loop() {
       case Paused:
          if (audio_buffer.room() > 15*TRANSFER_BUF_SIZE) {
             start_stream();
+            // Serial.println("s");
             state = Started;
          }
          break;
@@ -192,15 +199,17 @@ void loop() {
    }
 
    // Takes ~200 us to do this stuff
-   int packetSize = udp.parsePacket();
+   int packetSize = udp.parsePacket();   
    if (packetSize) {
       int len = udp.read(transfer_buffer, TRANSFER_BUF_SIZE); // Number of bytes read
       audio_buffer.write(transfer_buffer, len);
-      // Serial.printf("recv: %d\r\n", len);
+      // Serial.println(micros());
+      // int16_t* to_int16 = (int16_t * ) transfer_buffer;
+      // Serial.printf("recv: %d, %d, %d \r\n", len, to_int16[0], audio_buffer.available());
    }
 
    i2s_event_t i2s_evt;
-   size_t bytes_written;
+   size_t bytes_written = 0;
    bool to_exit = false;
 
    // if (audio_buffer.available()) {
@@ -213,25 +222,26 @@ void loop() {
 
 
    // Deal with all the messages in the queue
-   while (uxQueueMessagesWaiting(i2s_queue_handle) > 0 && !to_exit) {
-      xQueuePeek(i2s_queue_handle, &i2s_evt, 1); // Doesn't remove item from queue
-      switch (i2s_evt.type) {
-         case I2S_EVENT_TX_DONE:
-            if (audio_buffer.available() > TRANSFER_BUF_SIZE) {
-               int read = audio_buffer.read(transfer_buffer, TRANSFER_BUF_SIZE);
-               // read should == TRANSFER_BUF_SIZE so we don't have to deal with half full DMA buffers
-               int16_t* transfer_to_int16 = (int16_t * ) transfer_buffer;
-               Serial.printf("%x, %x\r\n", transfer_buffer[0], transfer_buffer[1]);
-               Serial.println(transfer_to_int16[0]);
-               i2s_write(I2S_NUM, transfer_buffer, read, &bytes_written, 1);
-               xQueueReceive(i2s_queue_handle, &i2s_evt, 1);
-            } else {
-               to_exit = true;   // Exit loop if we cannot deal with a TX_DONE message
-            }
-            break;
-         default:
-            xQueueReceive(i2s_queue_handle, &i2s_evt, 1);   // Ignore every other message for now
-            break;
+   if (uxQueueMessagesWaiting(i2s_queue_handle) > 0) {
+      if (xQueuePeek(i2s_queue_handle, &i2s_evt, portMAX_DELAY) == pdTRUE){ // Doesn't remove item from queue
+         switch (i2s_evt.type) {
+            case I2S_EVENT_TX_DONE:
+               if (audio_buffer.available() > 0) {
+                  int read = audio_buffer.read(transfer_buffer, TRANSFER_BUF_SIZE);
+                  // read should == TRANSFER_BUF_SIZE so we don't have to deal with half full DMA buffers
+                  i2s_write(I2S_NUM, transfer_buffer, read, &bytes_written, portMAX_DELAY);
+                  Serial.println(bytes_written);
+                  xQueueReceive(i2s_queue_handle, &i2s_evt, portMAX_DELAY);
+               } else {
+                  to_exit = true;   // Exit loop if we cannot deal with a TX_DONE message
+               }
+               break;
+            default:
+               xQueueReceive(i2s_queue_handle, &i2s_evt, portMAX_DELAY);   // Ignore every other message for now
+               Serial.println(i2s_evt.type);
+               break;
+         }
       }
    }
+   Serial.println(micros() - time_last_loop);
 }
