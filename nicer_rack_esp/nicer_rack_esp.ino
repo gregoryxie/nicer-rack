@@ -25,12 +25,12 @@ char transfer_buffer[TRANSFER_BUF_SIZE];           // Buffer to transfer audio d
 size_t bytes_written = 0;
 int bytes_read = 0;
 
-int16_t test_buffer[AUDIO_BUF_SIZE];
-int test_buf_i = 0;
+// int16_t test_buffer[AUDIO_BUF_SIZE];
+// int test_buf_i = 0;
 
 static const i2s_port_t I2S_NUM = I2S_NUM_0;    // ESP32S2 only has 1 I2S peripheral
 static const uint32_t I2S_SAMPLE_RATE = 44100;
-static const uint8_t I2S_BUF_COUNT = 4;
+static const uint8_t I2S_BUF_COUNT = 8;
 static const int I2S_MCK_IO = GPIO_NUM_6;       // I2S pin definitions
 static const int I2S_BCK_IO = GPIO_NUM_4;
 static const int I2S_WS_IO = GPIO_NUM_2;
@@ -54,7 +54,7 @@ esp_err_t initI2S() {
       .mode = (i2s_mode_t) (I2S_MODE_MASTER | I2S_MODE_TX),
       .sample_rate =  I2S_SAMPLE_RATE,
       .bits_per_sample = (i2s_bits_per_sample_t) 16,
-      .channel_format = I2S_CHANNEL_FMT_ALL_RIGHT,
+      .channel_format = I2S_CHANNEL_FMT_ONLY_RIGHT,
       .communication_format = I2S_COMM_FORMAT_STAND_I2S, // for amazon PCM5102 DAC
       .intr_alloc_flags = 0,
       .dma_buf_count = I2S_BUF_COUNT,
@@ -125,9 +125,9 @@ void setup() {
       Serial.println("I2S started!");
    }
 
-   for (int i = 0; i < AUDIO_BUF_SIZE; i++) {
-      test_buffer[i] = 32768 * i / AUDIO_BUF_SIZE;
-   }
+   // for (int i = 0; i < AUDIO_BUF_SIZE; i++) {
+   //    test_buffer[i] = 32768 * i / AUDIO_BUF_SIZE;
+   // }
 
    i2s_event_t tx_done = {
       .type = I2S_EVENT_TX_DONE,
@@ -220,15 +220,6 @@ void loop() {
    i2s_event_t i2s_evt;
    bool to_exit = false;
 
-   // if (audio_buffer.available()) {
-   //    int read = audio_buffer.read(transfer_buffer, 2);
-   //    Serial.println(read);
-   //    int16_t* to_int16 = (int16_t * ) transfer_buffer;
-   //    Serial.println(to_int16[0]);
-   //    i2s_write(I2S_NUM, to_int16, 1, &bytes_written, 1000);
-   // }
-
-
   //  if (audio_buffer.available() == 0) {
   //    audio_buffer.write((char*) test_buffer, AUDIO_BUF_SIZE);
   //  }
@@ -264,10 +255,10 @@ void loop() {
                      break;
                   }
                }
-               xQueueReceive(i2s_queue_handle, &i2s_evt, 1);
+               xQueueReceive(i2s_queue_handle, &i2s_evt, portMAX_DELAY);
                break;
             default:
-               xQueueReceive(i2s_queue_handle, &i2s_evt, 1);   // Ignore every other message for now
+               xQueueReceive(i2s_queue_handle, &i2s_evt, portMAX_DELAY);   // Ignore every other message for now
                // Serial.println(i2s_evt.type);
                break;
          }

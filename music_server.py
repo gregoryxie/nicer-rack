@@ -17,7 +17,7 @@ esp_timeout = 120 # seconds
 
 samples_per_second = 44000
 samples_per_loop = 500 # Also the size of the UDP message
-song_rate = 5   # Rate at which song is streamed, should be > 1
+song_rate = 3   # Rate at which song is streamed, should be > 1
 loop_time = 1000/44000/song_rate
 bytes_per_sample = 2
 
@@ -145,10 +145,10 @@ def int_array_to_bytes(data, len=2):
    return data_clip.astype(np.dtype('<i2')).tobytes()
 
 if __name__ == "__main__":
-   x_axis = np.linspace(0, 100*2*np.pi, 44100)
-   curr_song = int_array_to_bytes(2**15*np.sin(x_axis))
-   # x_axis = np.linspace(0, 1, 44100)
-   # curr_song = int_array_to_bytes(2**15*x_axis)
+   # x_axis = np.linspace(0, 100*2*np.pi, 44100)
+   # curr_song = int_array_to_bytes(2**14*np.sin(x_axis))
+   x_axis = np.linspace(0, 1, 10000)
+   curr_song = int_array_to_bytes(2**15*x_axis)
    # curr_song = int_array_to_bytes(np.ones(44000, dtype=np.int16)*2**14)
    # curr_song = bytes([0, 64, 32, 64]*22000)
 
