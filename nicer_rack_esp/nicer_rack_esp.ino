@@ -14,11 +14,12 @@ const char NETWORK[] = "MIT";
 const char PASSWORD[] = "";
 
 WiFiUDP udp;
+WiFiClient client;
 const int udp_port = 3333;                            // Local UDP port
-IPAddress remote = IPAddress(10, 31, 62, 16);        // UDP server IP address, hardcoded for now
+IPAddress remote = IPAddress(10, 31, 69, 132);        // UDP server IP address, hardcoded for now
 const int remote_port = 56971;                        // UDP server port, hardcoded
 
-const int AUDIO_BUF_SIZE = 22050;
+const int AUDIO_BUF_SIZE = 44100;
 const int TRANSFER_BUF_SIZE = 1024;
 cbuf audio_buffer = cbuf(AUDIO_BUF_SIZE);          // Circular buffer for audio data recieved from UDP
 char transfer_buffer[TRANSFER_BUF_SIZE];           // Buffer to transfer audio data from circular buffer to DMA buffers
@@ -42,7 +43,7 @@ enum StreamStates{Started, Paused, Stopped};       // States for state machine
 enum StreamStates state;
 
 unsigned long time_last_heartbeat = 0;
-int heartbeat_period_ms = 10000;        // Heardbeat message period (send state)
+int heartbeat_period_ms = 3000;        // Heardbeat message period (send state)
 
 unsigned long time_last_loop = 0;
 int loop_period_us = 5000;
@@ -77,7 +78,7 @@ esp_err_t initI2S() {
    return ESP_OK;
 }
 
-esp_err_t startWIFIandUDP() {
+esp_err_t startWIFI() {
    WiFi.begin(NETWORK, PASSWORD);
 
    // Connect to WiFi, start attach to UDP socket
@@ -100,8 +101,27 @@ esp_err_t startWIFIandUDP() {
       Serial.println(WiFi.status());
       ESP.restart();
    }
+   return ESP_OK;
+}
 
-   count = 0;
+esp_err_t startTCP() {
+   uint8_t count = 0;
+   Serial.printf("Attempting to connect to %s:%d \r\n", remote.toString(), remote_port);
+   delay(100);
+   while (!client.connect(remote, remote_port) && count < 12) {
+      delay(500);
+      Serial.print(".");
+      count++;
+   }
+   if (!client.connected()) {
+      Serial.println("Failed to connect, restarting");
+      ESP.restart();
+   }
+   return ESP_OK;
+}
+
+esp_err_t startUDP() {
+   uint8_t count = 0;
    Serial.printf("Starting UDP, port: %d\r\n", udp_port);
    while (udp.begin(WiFi.localIP(),udp_port) != 1 && count < 12) {
       delay(500);
@@ -109,16 +129,19 @@ esp_err_t startWIFIandUDP() {
       count++;
    }
    Serial.println("UDP Connected!");
-
    return ESP_OK;
 }
 
 void setup() {
    Serial.begin(115200);
 
-   Serial.println("Starting WiFi and UDP");
-   if (startWIFIandUDP() == ESP_OK) {
-      Serial.println("WiFi and UDP started!");
+   Serial.println("Starting WiFi");
+   if (startWIFI() == ESP_OK) {
+      Serial.println("WiFi started!");
+   }
+   Serial.println("Starting TCP");
+   if (startTCP() == ESP_OK) {
+      Serial.println("TCP connected!");
    }
    Serial.println("Starting I2S");
    if (initI2S() == ESP_OK) {
@@ -146,21 +169,15 @@ void setup() {
 }
 
 void start_stream() {
-   udp.beginPacket(remote, remote_port);
-   udp.write(0);
-   udp.endPacket();
+   client.write((uint8_t) 0);
 }
 
 void pause_stream() {
-   udp.beginPacket(remote, remote_port);
-   udp.write(1);
-   udp.endPacket();
+   client.write((uint8_t) 1);
 }
 
 void stop_stream() {
-   udp.beginPacket(remote, remote_port);
-   udp.write(2);
-   udp.endPacket();
+   client.write((uint8_t) 2);
 }
 
 void print_buf_ints(int len) {
@@ -188,7 +205,7 @@ void loop() {
       case Started:
          if (audio_buffer.room() < 10*TRANSFER_BUF_SIZE) {
             pause_stream();
-            // Serial.println("p");
+            Serial.println("p");
             // Serial.println(audio_buffer.room());
             state = Paused;
          }
@@ -197,7 +214,7 @@ void loop() {
       case Paused:
          if (audio_buffer.room() > 15*TRANSFER_BUF_SIZE) {
             start_stream();
-            // Serial.println("s");
+            Serial.println("s");
             state = Started;
          }
          break;
@@ -206,15 +223,9 @@ void loop() {
          break;
    }
 
-   // Takes ~200 us to do this stuff
-   int packetSize = udp.parsePacket();   
-   if (packetSize > 0) {
-      int len = udp.read(transfer_buffer, TRANSFER_BUF_SIZE); // Number of bytes read
+   while (client.available() > 0) {
+      int len = client.read((uint8_t*) transfer_buffer, TRANSFER_BUF_SIZE); // Number of bytes read
       audio_buffer.write(transfer_buffer, len);
-      packetSize = packetSize - len;
-      // Serial.println(micros());
-      // int16_t* to_int16 = (int16_t * ) transfer_buffer;
-      // Serial.printf("recv: %d, %d, %d \r\n", len, to_int16[0], audio_buffer.available());
    }
 
    i2s_event_t i2s_evt;
