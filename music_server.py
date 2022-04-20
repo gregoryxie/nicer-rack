@@ -17,12 +17,12 @@ esp_timeout = 120 # seconds
 
 samples_per_second = 44000
 samples_per_loop = 500 # Also the size of the UDP message, MTU max 1300 bytes per message
-song_rate = .1   # Rate at which song is streamed, should be > 1
+song_rate = 2.2   # Rate at which song is streamed, should be > 1
 loop_time = samples_per_loop/samples_per_second/song_rate
 bytes_per_sample = 2
 bytes_per_loop = samples_per_loop*bytes_per_sample
 
-print(loop_time)
+# print(loop_time)
 
 curr_song = 0
 
@@ -73,8 +73,6 @@ def try_send_esp(conn, client_addr):
          clients[client_addr]['done'] = False
          return True
 
-      print(f"{start}, {len(curr_song)}")
-
       if start + bytes_per_loop > len(curr_song):
          data_bytes = curr_song[start:]
          clients[client_addr]['song_i'] = len(curr_song)
@@ -85,11 +83,8 @@ def try_send_esp(conn, client_addr):
          clients[client_addr]['done'] = False
 
       try:
-         print("sending")
          conn.send(data_bytes)      #TCP
-         print("send done")
          # sock.sendto(data_bytes, client_addr)       # UDP
-         # print(f"sent to {client_addr}")
       except BrokenPipeError:
          clients_lock.notify()
          return False
@@ -128,8 +123,6 @@ def client_serve_func(conn, client_addr):
          while (datetime.now() - start).total_seconds() < loop_time:
             time.sleep(loop_time/20)
          
-         print(datetime.now())
-
          start = datetime.now()
 
          if not try_recv_esp(conn, client_addr):
@@ -168,14 +161,7 @@ def int_array_to_bytes(data, len=2):
             (-2**(len-1), 2**(len-1)-1)
    
    """
-
-   # data_clip = np.clip(data, -2**(len*8-1), 2**(len*8-1)-1)
-
-   # out = [i.to_bytes(2, byteorder='big') for i in data]
-   # out = [item for sub in out for item in sub]
-   # return bytes(out)
    data_clip = np.clip(data, -2**(len*8-1), 2**(len*8-1)-1)
-   # print(data_clip)
    return data_clip.astype(np.dtype('<i2')).tobytes()
 
 def run_server():
@@ -196,7 +182,6 @@ def run_server():
 
    count = 0
    large_count = 0
-   # input("press to start")
    while True:
       while (datetime.now() - start).total_seconds() < loop_time:
          time.sleep(loop_time/20)
@@ -210,12 +195,11 @@ def run_server():
          print(clients)
          count = 0
 
-      # with clients_lock:
-         # done = np.prod([clients[client_addr]["done"] for client_addr in clients.keys()])
-         # clients_lock.notify()
-      # if done:
-         # print("Finished sending song")
-         # reset_song_i()
+      with clients_lock:
+         done = np.prod([clients[client_addr]["done"] for client_addr in clients.keys()])
+         clients_lock.notify()
+      if done:
+         reset_song_i()
          # break
          # go to next song
       
@@ -223,17 +207,3 @@ def run_server():
 
 if __name__ == "__main__":
    run_server()
-
-      # check if any ESP32 timeout, remove them
-      # remove_timeout_esp()
-
-      # send batch of music to all connected ESP32S
-      # done = np.prod(send_song_segment_esp(samples_per_loop*bytes_per_sample))
-      # if done:
-         # print("Finished sending song")
-         # reset_song_i()
-         # break
-         # go to next song
-
-      # data = np.ones(samples_per_loop)*2**14*large_count/10
-      # send_data_esp(data)

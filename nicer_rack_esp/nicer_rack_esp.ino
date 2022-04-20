@@ -16,10 +16,10 @@ const char PASSWORD[] = "";
 WiFiUDP udp;
 WiFiClient client;
 const int udp_port = 3333;                            // Local UDP port
-IPAddress remote = IPAddress(10, 29, 65, 157);        // UDP server IP address, hardcoded for now
+IPAddress remote = IPAddress(10, 31, 69, 132);        // UDP server IP address, hardcoded for now
 const int remote_port = 56971;                        // UDP server port, hardcoded
 
-const int AUDIO_BUF_SIZE = 44100;
+const int AUDIO_BUF_SIZE = 88200;
 const int TRANSFER_BUF_SIZE = 1024;
 cbuf audio_buffer = cbuf(AUDIO_BUF_SIZE);          // Circular buffer for audio data recieved from UDP
 char transfer_buffer[TRANSFER_BUF_SIZE];           // Buffer to transfer audio data from circular buffer to DMA buffers
@@ -56,12 +56,12 @@ esp_err_t initI2S() {
       .sample_rate =  I2S_SAMPLE_RATE,
       .bits_per_sample = (i2s_bits_per_sample_t) 16,
       .channel_format = I2S_CHANNEL_FMT_ONLY_RIGHT,
-      .communication_format = I2S_COMM_FORMAT_STAND_I2S, // for amazon PCM5102 DAC
+      .communication_format = I2S_COMM_FORMAT_STAND_I2S,       // for amazon PCM5102 DAC
       .intr_alloc_flags = 0,
       .dma_buf_count = I2S_BUF_COUNT,
-      .dma_buf_len = 1024,    // number of samples, 1024 seems to be the max
+      .dma_buf_len = 1024,       // number of samples, 1024 seems to be the max
       .use_apll = 1,
-      .tx_desc_auto_clear = 1,
+      .tx_desc_auto_clear = 1,         // Automatically clear DMA buffers when sent
    };
 
    i2s_pin_config_t i2s_pin_cfg = {
@@ -80,8 +80,6 @@ esp_err_t initI2S() {
 
 esp_err_t startWIFI() {
    WiFi.begin(NETWORK, PASSWORD);
-
-   // Connect to WiFi, start attach to UDP socket
    uint8_t count = 0;
    Serial.printf("Attempting to connect to %s \r\n", NETWORK);
    while (WiFi.status() != WL_CONNECTED && count < 12) {
@@ -117,6 +115,8 @@ esp_err_t startTCP() {
       Serial.println("Failed to connect, restarting");
       ESP.restart();
    }
+
+   client.setNoDelay(true);   // No delay when sending packets
    return ESP_OK;
 }
 
@@ -194,36 +194,7 @@ void loop() {
 
    // while (micros() - time_last_loop < loop_period_us) {delayMicroseconds(500);}
 
-   if (millis() - time_last_heartbeat > heartbeat_period_ms) {
-      time_last_heartbeat = millis();
-      if (state == Started) {start_stream();}
-      else if (state == Paused) {pause_stream();}
-      else if (state == Stopped) {stop_stream();}
-   }
-
-   switch (state) {
-      case Started:
-         if (audio_buffer.room() < 10*TRANSFER_BUF_SIZE) {
-            pause_stream();
-            Serial.println("p");
-            // Serial.println(audio_buffer.room());
-            state = Paused;
-         }
-         break;
-
-      case Paused:
-         if (audio_buffer.room() > 15*TRANSFER_BUF_SIZE) {
-            start_stream();
-            Serial.println("s");
-            state = Started;
-         }
-         break;
-
-      case Stopped:
-         break;
-   }
-
-   if (client.available() > 0) {
+   if (client.available() > 0 && audio_buffer.room() > TRANSFER_BUF_SIZE) {
       int len = client.read((uint8_t*) transfer_buffer, TRANSFER_BUF_SIZE); // Number of bytes read
       audio_buffer.write(transfer_buffer, len);
    }
@@ -240,19 +211,11 @@ void loop() {
       if (xQueuePeek(i2s_queue_handle, &i2s_evt, portMAX_DELAY) == pdTRUE){ // Doesn't remove item from queue
          switch (i2s_evt.type) {
             case I2S_EVENT_TX_DONE:
-               // Serial.printf("loop, q: %d, %d\r\n", uxQueueMessagesWaiting(i2s_queue_handle), micros());
-               // Serial.printf("%d, %d\r\n", bytes_written, bytes_read);
-
-               // if (bytes_written == 0 && bytes_read == 0) {
-               //   i2s_zero_dma_buffer(I2S_NUM);
-               // }
-
                while (bytes_written != bytes_read) {
                   i2s_write(I2S_NUM, transfer_buffer+bytes_written, bytes_read-bytes_written, &bytes_written, 1);
                }
 
                while (bytes_written == bytes_read) {
-                  // Serial.println(bytes_written);
                   bytes_read = audio_buffer.read(transfer_buffer, TRANSFER_BUF_SIZE);
                   if (bytes_read == 0) {
                     bytes_written = 0;
@@ -270,10 +233,32 @@ void loop() {
                break;
             default:
                xQueueReceive(i2s_queue_handle, &i2s_evt, portMAX_DELAY);   // Ignore every other message for now
-               // Serial.println(i2s_evt.type);
                break;
          }
       }
    }
-  //  Serial.println(micros() - time_last_loop);
+
+   if (millis() - time_last_heartbeat > heartbeat_period_ms) {
+      time_last_heartbeat = millis();
+      if (state == Started) {start_stream();}
+      else if (state == Paused) {pause_stream();}
+      else if (state == Stopped) {stop_stream();}
+   }
+
+   switch (state) {
+      case Paused:
+         if (audio_buffer.room() > AUDIO_BUF_SIZE/2) {
+            start_stream();
+            state = Started;
+         }
+         break;
+      case Started:
+         if (audio_buffer.room() < AUDIO_BUF_SIZE/10) {
+            pause_stream();
+            state = Paused;
+         }
+         break;
+      case Stopped:
+         break;
+   }
 }
