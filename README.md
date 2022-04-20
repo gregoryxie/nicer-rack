@@ -1,6 +1,7 @@
 # nicer-rack
 
 hopefully nicer and not worser
+View [NiceRack](nicerack.mit.edu)
 
 ## Installation
 
