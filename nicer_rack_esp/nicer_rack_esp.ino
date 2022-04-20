@@ -16,7 +16,7 @@ const char PASSWORD[] = "";
 WiFiUDP udp;
 WiFiClient client;
 const int udp_port = 3333;                            // Local UDP port
-IPAddress remote = IPAddress(10, 31, 69, 132);        // UDP server IP address, hardcoded for now
+IPAddress remote = IPAddress(10, 29, 65, 157);        // UDP server IP address, hardcoded for now
 const int remote_port = 56971;                        // UDP server port, hardcoded
 
 const int AUDIO_BUF_SIZE = 44100;
@@ -223,7 +223,7 @@ void loop() {
          break;
    }
 
-   while (client.available() > 0) {
+   if (client.available() > 0) {
       int len = client.read((uint8_t*) transfer_buffer, TRANSFER_BUF_SIZE); // Number of bytes read
       audio_buffer.write(transfer_buffer, len);
    }

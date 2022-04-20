@@ -10,57 +10,136 @@ import queue
 HOST = '' # bind to a bunch of stuff? idk lol
 PORT = 56971 # random port between 49152–65535
 
-socket_lock = threading.Condition()
-clients = {} # client_address: {'socket': socket, 'last_seen': datetime, 'state': int, 'song_i':int}
+clients_lock = threading.Condition()
+clients = {} # client_address: {'last_seen': datetime, 'state': int, 'song_i':int, 'done':bool}
 
 esp_timeout = 120 # seconds
 
 samples_per_second = 44000
 samples_per_loop = 500 # Also the size of the UDP message, MTU max 1300 bytes per message
-song_rate = 4   # Rate at which song is streamed, should be > 1
-loop_time = 1000/44000/song_rate
+song_rate = .1   # Rate at which song is streamed, should be > 1
+loop_time = samples_per_loop/samples_per_second/song_rate
 bytes_per_sample = 2
+bytes_per_loop = samples_per_loop*bytes_per_sample
 
-curr_song = None
+print(loop_time)
+
+curr_song = 0
+
+# try to receive bytes from ESP, try to send
+def try_recv_esp(conn, client_addr, first_recv=False):
+   try:
+      if first_recv:
+         data = conn.recv(1)
+      else:
+         data = conn.recv(1, socket.MSG_DONTWAIT)
+      now = datetime.now()
+      int_data = int.from_bytes(data, "big")
+
+      with clients_lock:
+         # client has not been seen before
+         if client_addr not in clients.keys():
+            clients[client_addr] = {'last_seen': now, 'state': int_data, 'song_i': 0, 'done':False}
+            print(f"New Client: {clients[client_addr]}")
+            new_client = True
+         else:
+            clients[client_addr]['last_seen'] = now
+            clients[client_addr]['state'] = int_data
+
+         if clients[client_addr]['state'] == 1:
+            print("PAUSE")
+         if clients[client_addr]['state'] == 0:
+            print("GO")
+
+         # print(clients)
+         
+         clients_lock.notify()
+      return True
+   except TimeoutError as e:
+      print("socket timeout")
+      return False
+   except (TypeError,BlockingIOError) as e:
+      return True
+   except Exception as e:
+      print(type(e))
+      print(e)
+      return True
+
+def try_send_esp(conn, client_addr):
+   with clients_lock:
+      start = clients[client_addr]['song_i']
+
+      if clients[client_addr]['state'] == 1 or clients[client_addr]['state'] == 2:
+         clients[client_addr]['done'] = False
+         return True
+
+      print(f"{start}, {len(curr_song)}")
+
+      if start + bytes_per_loop > len(curr_song):
+         data_bytes = curr_song[start:]
+         clients[client_addr]['song_i'] = len(curr_song)
+         clients[client_addr]['done'] = True
+      else:
+         data_bytes = curr_song[start:start + bytes_per_loop]
+         clients[client_addr]['song_i'] += bytes_per_loop
+         clients[client_addr]['done'] = False
+
+      try:
+         print("sending")
+         conn.send(data_bytes)      #TCP
+         print("send done")
+         # sock.sendto(data_bytes, client_addr)       # UDP
+         # print(f"sent to {client_addr}")
+      except BrokenPipeError:
+         clients_lock.notify()
+         return False
+      except BlockingIOError:
+         pass
+
+      clients_lock.notify()
+      return True
+   
+   
+      
+
+def check_timeout_esp(conn, client_addr):
+   now = datetime.now()
+   with clients_lock:
+      last_seen = clients[client_addr]['last_seen']
+      diff = now - last_seen
+      diff = diff.total_seconds()
+
+      if diff > esp_timeout:
+         clients.pop(client_addr)
+         clients_lock.notify()
+         return True
+      
+      clients_lock.notify()
+   return False
 
 def client_serve_func(conn, client_addr):
+   start = datetime.now()
+
    with conn:
+      if not try_recv_esp(conn, client_addr, first_recv=True):
+         return
+
       while True:
-         try:
-            data = conn.recv(1, socket.MSG_DONTWAIT)
-            now = datetime.now()
-            int_data = int.from_bytes(data, "big")
+         while (datetime.now() - start).total_seconds() < loop_time:
+            time.sleep(loop_time/20)
+         
+         print(datetime.now())
 
-            with socket_lock:
-               # client has not been seen before
-               if client_addr not in clients.keys():
-                  clients[client_addr] = {'socket': conn, 'last_seen': now, 'state': int_data, 'song_i': 0}
-                  print(f"New Client: {clients[client_addr]}")
-                  new_client = True
-               else:
-                  clients[client_addr]['last_seen'] = now
-                  clients[client_addr]['state'] = int_data
+         start = datetime.now()
 
-               if clients[client_addr]['state'] == 1:
-                  print("PAUSE")
-               if clients[client_addr]['state'] == 0:
-                  print("GO")
+         if not try_recv_esp(conn, client_addr):
+            break
 
-               # print(clients)
-               
-               socket_lock.notify()
-         except (TypeError,BlockingIOError) as e:
-            # print(e)
-            pass
-         except TimeoutError as e:
-            print("socket timeout")
-            print(e)
-            return
-         except Exception as e:
-            print(type(e))
-            print(e)
+         if check_timeout_esp(conn, client_addr):
+            break
 
-
+         if not try_send_esp(conn, client_addr):
+            break
 
 def server_thread_func():
    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
@@ -75,77 +154,12 @@ def server_thread_func():
          client_thread.daemon = True
          client_thread.start()
 
-def remove_timeout_esp():
-   with socket_lock:
-      now = datetime.now()
-      to_remove = []
-      for client_addr in clients.keys():
-         last_seen = clients[client_addr]['last_seen']
-         diff = now - last_seen
-         diff = diff.total_seconds()
-
-         if diff > esp_timeout:
-            to_remove.append(client_addr)
-
-      for client_addr in to_remove:
-         clients.pop(client_addr)
-   
-      socket_lock.notify()
-
-def send_data_esp(data):
-   data_bytes = int_array_to_bytes(data, 2)
-   with socket_lock:
-      for client_addr in clients.keys():
-         sock = clients[client_addr]['socket']
-         start = clients[client_addr]['song_i']
-
-         if clients[client_addr]['state'] == 1 or clients[client_addr]['state'] == 2:
-            # ESP wants to pause stream
-            continue
-         print(f"send: {len(data_bytes)}, {client_addr}")
-         
-         sock.send(data_bytes)
-         # print(f"sent to {client_addr}")
-
-def send_song_segment_esp(n_bytes):
-   done = []
-   to_kill = []
-   with socket_lock:
-      for client_addr in clients.keys():
-         sock = clients[client_addr]['socket']
-         start = clients[client_addr]['song_i']
-
-         if clients[client_addr]['state'] == 1 or clients[client_addr]['state'] == 2:
-            done.append(False)
-            # ESP wants to pause stream
-            continue
-
-         if start + n_bytes > len(curr_song):
-            data_bytes = curr_song[start:]
-            clients[client_addr]['song_i'] = len(curr_song)
-            done.append(True)
-         else:
-            data_bytes = curr_song[start:start + n_bytes]
-            clients[client_addr]['song_i'] += n_bytes
-            done.append(False)
-
-         try:
-
-            # print(f"send: {len(data_bytes)}, {client_addr}")
-            sock.send(data_bytes, socket.MSG_DONTWAIT)      #TCP
-            # sock.sendto(data_bytes, client_addr)       # UDP
-            # print(f"sent to {client_addr}")
-         except BrokenPipeError:
-            to_kill.append(client_addr)
-
-   for client in to_kill:
-      clients.pop(client)
-   return done
-
 def reset_song_i():
-   with socket_lock:
+   with clients_lock:
       for client_addr in clients.keys():
-         clients[client_addr]['song_i'] = 0 
+         clients[client_addr]['song_i'] = 0
+         clients[client_addr]['done'] = False
+      clients_lock.notify()
 
 def int_array_to_bytes(data, len=2):
    """
@@ -164,7 +178,9 @@ def int_array_to_bytes(data, len=2):
    # print(data_clip)
    return data_clip.astype(np.dtype('<i2')).tobytes()
 
-if __name__ == "__main__":
+def run_server():
+   global curr_song
+
    x_axis = np.linspace(0, 261*2*np.pi, 44100)
    curr_song = int_array_to_bytes(2**14*np.sin(x_axis))
    # x_axis = np.linspace(0, 1, 10000)
@@ -191,17 +207,31 @@ if __name__ == "__main__":
       large_count += 1
       large_count = large_count % 10
       if count % 100 == 0:
-         # print(clients)
+         print(clients)
          count = 0
 
+      # with clients_lock:
+         # done = np.prod([clients[client_addr]["done"] for client_addr in clients.keys()])
+         # clients_lock.notify()
+      # if done:
+         # print("Finished sending song")
+         # reset_song_i()
+         # break
+         # go to next song
+      
+
+
+if __name__ == "__main__":
+   run_server()
+
       # check if any ESP32 timeout, remove them
-      remove_timeout_esp()
+      # remove_timeout_esp()
 
       # send batch of music to all connected ESP32S
-      done = np.prod(send_song_segment_esp(samples_per_loop*bytes_per_sample))
-      if done:
+      # done = np.prod(send_song_segment_esp(samples_per_loop*bytes_per_sample))
+      # if done:
          # print("Finished sending song")
-         reset_song_i()
+         # reset_song_i()
          # break
          # go to next song
 
