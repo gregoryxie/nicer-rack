@@ -4,8 +4,9 @@
   "description": "",
   "main": "server/server.js",
   "scripts": {
-    "hotloader": "webpack serve --config ./webpack.config.js --mode development --port 5000",
-    "start": "nodemon"
+    "hotloader": "webpack serve --config ./webpack.config.js --mode development --port 3000",
+    "start": "nodemon",
+    "start-api": "cd server && flask run --no-debugger"
   },
   "repository": {
     "type": "git",

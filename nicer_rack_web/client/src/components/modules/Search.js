@@ -23,6 +23,9 @@ const Search = () => {
     event.preventDefault();
     setSearchValue(searchBuffer); // set the current bio to whatever is in the bioBuffer
     console.log(searchBuffer); 
+
+    fetch('/get_queue').then((res) => res.text()).then((res) => {console.log(res);});
+
   }
 
   return (
