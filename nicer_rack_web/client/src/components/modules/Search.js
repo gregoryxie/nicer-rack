@@ -24,12 +24,14 @@ const Search = () => {
     setSearchValue(searchBuffer); // set the current bio to whatever is in the bioBuffer
     console.log(searchBuffer); 
 
-    fetch('http://localhost:5000/get_queue')
+    var url = 'http://localhost:5000/add_link/' + searchBuffer;
+    console.log(url) 
+    fetch(url)
     .then(function (response) {
       return response.json();
     }).then(function (text) {
       console.log("GET RESPONSE");
-      console.log(text.greeting);
+      console.log(text.link);
     });
   }
 
