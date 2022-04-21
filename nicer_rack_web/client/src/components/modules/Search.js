@@ -24,8 +24,13 @@ const Search = () => {
     setSearchValue(searchBuffer); // set the current bio to whatever is in the bioBuffer
     console.log(searchBuffer); 
 
-    fetch('/get_queue').then((res) => res.text()).then((res) => {console.log(res);});
-
+    fetch('http://localhost:5000/get_queue')
+    .then(function (response) {
+      return response.json();
+    }).then(function (text) {
+      console.log("GET RESPONSE");
+      console.log(text.greeting);
+    });
   }
 
   return (
