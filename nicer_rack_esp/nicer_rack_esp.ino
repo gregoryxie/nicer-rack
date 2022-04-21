@@ -2,6 +2,12 @@
 #include <WiFiUDP.h>
 #include <Wifi.h>
 #include <cbuf.h>
+#include "freertos/queue.h"
+#include "driver/i2s.h"
+#include "esp_system.h"
+#include "esp_types.h"
+#include "esp_err.h"
+#include "esp_check.h"
 // #include <ESPm.h>
 
 const char NETWORK[] = "MIT";
