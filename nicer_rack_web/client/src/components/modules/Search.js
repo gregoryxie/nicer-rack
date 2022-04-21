@@ -22,14 +22,25 @@ const Search = () => {
     event.preventDefault();
     console.log(searchBuffer);
 
-    var url = 'http://localhost:5000/add_link/' + searchBuffer;
-    console.log(url) 
-    fetch(url)
+    var yt_query = "";
+    if (searchBuffer.startsWith("https://www.youtube.com") || searchBuffer.startsWith("www.youtube.com") || searchBuffer.startsWith("youtube.com")) {
+      yt_query = searchBuffer.split("youtube.com/watch?v=")[1];
+    }
+
+    var url = 'http://localhost:5000/add_link/' + yt_query;
+    fetch(url
+      // headers: {
+      //   'Accept': 'application/json',
+      //   'Content-Type': 'application/json',
+      //   'Access-Control-Allow-Methods': '*',
+      //   'Access-Control-Allow-Headers': '*'
+      // },
+    )
     .then(function (response) {
       return response.json();
     }).then(function (text) {
       console.log("GET RESPONSE");
-      console.log(text.link);
+      console.log(text)
     });
   }
 
