@@ -1,7 +1,7 @@
 import React from "react";
 import { Router } from "@reach/router";
-import Search from "./modules/Search.js";
 import Title from "./modules/Title.js";
+import HomePage from "./pages/HomePage.js";
 
 // To use styles, import the necessary CSS files
 
@@ -11,7 +11,7 @@ import Title from "./modules/Title.js";
       <div>
         <Title />
         <Router>
-          <Search default />
+          <HomePage default />
         </Router>
       </div>
     </>
