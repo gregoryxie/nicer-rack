@@ -17,7 +17,7 @@ esp_timeout = 120 # seconds
 
 samples_per_second = 44000
 samples_per_loop = 500 # Also the size of the UDP message, MTU max 1300 bytes per message
-song_rate = 2.2   # Rate at which song is streamed, should be > 1
+song_rate = 8   # Rate at which song is streamed, should be > 1
 loop_time = samples_per_loop/samples_per_second/song_rate
 bytes_per_sample = 2
 bytes_per_loop = samples_per_loop*bytes_per_sample
