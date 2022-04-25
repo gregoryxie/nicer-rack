@@ -22,8 +22,9 @@ def add_link(link=None):
         return {'message': 'Invalid link given'}
     title, duration, yt_link, filepath, thumbnail = data
     insert_data(title, duration, yt_link, filepath, thumbnail)
-    return {'message': 'Link given, downloaded, and saved in db',
-    'title': title, 'duration': duration, 'yt_link': yt_link, 'thumbnail': thumbnail}
+    obj = {'title': title, 'thumbnail': thumbnail}
+    queue.append(obj)
+    return jsonify(queue)
 
 @app.route('/all_song_info/')
 def get_song_info():
@@ -32,7 +33,7 @@ def get_song_info():
 # GET Request
 @app.route('/get_queue/')
 def get_queue():
-    return queue
+    return jsonify(queue)
 
 @app.route('/add_song_queue/<link>')
 @app.route('/add_song_queue/')
