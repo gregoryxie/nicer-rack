@@ -1,9 +1,7 @@
 from flask import Flask
-from flask import request
 from flask_cors import CORS
-from flask import jsonify
 from ...link_handler import extract_link_data
-from ...data_handler import insert_data
+from ...data_handler import insert_data, retrieve_all_data
 
 queue = []
 
@@ -26,8 +24,8 @@ def add_link(link=None):
     'title': title, 'duration': duration, 'yt_link': yt_link, 'thumbnail': thumbnail}
 
 @app.route('/all_song_info/')
-def get_song_info():
-    pass
+def all_song_info():
+    return retrieve_all_data()
 
 # GET Request
 @app.route('/get_queue/')
