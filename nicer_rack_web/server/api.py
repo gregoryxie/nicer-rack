@@ -1,4 +1,5 @@
 from flask import Flask
+from flask import jsonify
 from flask_cors import CORS
 from ...link_handler import extract_link_data
 from ...data_handler import insert_data, retrieve_all_data
