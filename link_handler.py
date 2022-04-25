@@ -15,11 +15,12 @@ def extract_link_data(link):
     and thumbnail url, and downloads audio from link. 
 
     Arguments:
-        link: String YouTube link
+        link: String YouTube link, query argument only
     Returns: tuple of (String title, Float duration, String link, String thumbnail, String filepath). 
     None if link not accessible or does not exist"""
     # Clean YouTube link and access video from link
-    yt_link = clean_link(link)
+    # yt_link = clean_link(link)
+    yt_link = "youtube.com/watch?v=" + link
     try:
         vid = pytube.YouTube(yt_link)
         vid.check_availability()
@@ -39,7 +40,7 @@ def extract_link_data(link):
 
     # Extract only audio from the video, and download to audio_files directory
     audio = vid.streams.filter(only_audio=True).first()
-    audio_file = audio.download(output_path="./audio_files/", filename=filename)
+    audio_file = audio.download(output_path="../../audio_files/", filename=filename)
 
     #Save the file as .mp3, define relative filepath to return
     base, ext = os.path.splitext(audio_file)

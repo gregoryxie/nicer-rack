@@ -32,6 +32,13 @@ def retrieve_data(link):
         current = c.execute('''SELECT * FROM info_db WHERE link=?;''',(link,)).fetchone()
     return current
 
+# returns tuples of all rows in db
+def retrieve_all_data():
+    with sqlite3.connect(info_db) as c:
+        c.execute("""CREATE TABLE IF NOT EXISTS info_db (time_ timestamp, title text, length real, link text, filepath text, thumnbnail text);""")
+        current = c.execute('''SELECT * FROM info_db;''').fetchall()
+    return current
+
 # given link: deletes row data, if exists. returns TUPLE of mp3 filepath of deleted entry.
 def delete_data(link):
     with sqlite3.connect(info_db) as c:

@@ -2,3 +2,5 @@ pytube3
 pytube
 npm
 pydub
+flask
+python-dotenv

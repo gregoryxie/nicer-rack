@@ -1,0 +1,32 @@
+.Song {
+  position: relative;
+  width: 40vw;
+  height: 10vh;
+  background-color: rgb(255, 165, 0);
+}
+
+.Song:after {
+  content: "";
+  display: block;
+  padding-top: 100%;
+}
+
+.content {
+  overflow-wrap: break-word;
+  text-decoration: none;
+  position: absolute;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  height: 100%;
+}
+
+.content p {
+  margin: 8px;
+  text-decoration: none;
+}
+
+.Song a {
+  color: black;
+}
