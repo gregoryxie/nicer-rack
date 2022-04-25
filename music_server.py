@@ -17,7 +17,7 @@ esp_timeout = 120 # seconds
 
 samples_per_second = 44000
 samples_per_loop = 500 # Also the size of the UDP message, MTU max 1300 bytes per message
-song_rate = 8   # Rate at which song is streamed, should be > 1
+song_rate = 3   # Rate at which song is streamed, should be > 1
 loop_time = samples_per_loop/samples_per_second/song_rate
 bytes_per_sample = 2
 bytes_per_loop = samples_per_loop*bytes_per_sample
@@ -167,7 +167,7 @@ def int_array_to_bytes(data, len=2):
 def run_server():
    global curr_song
 
-   x_axis = np.linspace(0, 261*2*np.pi, 44100)
+   x_axis = np.linspace(0, 440*2*np.pi, 44100)
    curr_song = int_array_to_bytes(2**14*np.sin(x_axis))
    # x_axis = np.linspace(0, 1, 10000)
    # curr_song = int_array_to_bytes(2**15*x_axis)

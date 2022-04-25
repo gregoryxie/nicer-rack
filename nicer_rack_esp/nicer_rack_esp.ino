@@ -45,6 +45,8 @@ const int I2S_DO_IO = GPIO_NUM_33;
 const int I2S_DI_IO = GPIO_NUM_26;
 QueueHandle_t i2s_queue_handle;
 
+const int out_pin = 12;
+
 TaskHandle_t communication_task_handle = NULL;
 TaskHandle_t audio_task_handle = NULL;
 
@@ -53,11 +55,6 @@ enum StreamStates state;
 
 unsigned long time_last_heartbeat = 0;
 int heartbeat_period_ms = 3000;        // Heardbeat message period (send state)
-
-unsigned long time_last_loop = 0;
-int loop_period_us = 5000;
-
-unsigned long last = 0;
 
 esp_err_t initI2S() {
    i2s_config_t i2s_config = {
@@ -148,24 +145,25 @@ void commTaskFunc(void * pvParameters) {
    start_stream();
 
    while (true) {
+      to_send = false;
 
       // Receive data from TCP server
       int buf_room = uxQueueSpacesAvailable(audio_buffer_handle);
-      if (client.available() > 0 && buf_room > 1) {
+      if (client.available() > TRANSFER_BUF_SIZE && buf_room > 1) {
          AudioBlock audio_block;
          audio_block.len = client.read((uint8_t*) audio_block.buf, TRANSFER_BUF_SIZE); // Number of bytes read
-         xQueueSend(audio_buffer_handle, &audio_block, pdTRUE);
+         xQueueSend(audio_buffer_handle, &audio_block, portMAX_DELAY);
       }
 
       switch (state) {
          case Paused:
-            if (buf_room > AUDIO_BUF_SIZE/2) {
+            if (buf_room > AUDIO_BUF_SIZE*0.7) {
                state = Started;
                to_send = true;
             }
             break;
          case Started:
-            if (buf_room < AUDIO_BUF_SIZE/10) {
+            if (buf_room < AUDIO_BUF_SIZE*0.3) {
                state = Paused;
                to_send = true;
             }
@@ -190,7 +188,7 @@ void commTaskFunc(void * pvParameters) {
          }
       }
 
-      vTaskDelay(.5 / portTICK_PERIOD_MS);
+      vTaskDelay(3.0 / portTICK_PERIOD_MS);
    }
 }
 
@@ -198,20 +196,23 @@ void audioTaskFunc(void * pvParameters) {
    i2s_event_t i2s_evt;
    AudioBlock audio_block;
 
+   bool wrote_i2s = false;
+
    while (true) {
       //  if (audio_buffer.available() == 0) {
       //    audio_buffer.write((char*) test_buffer, AUDIO_BUF_SIZE);
       //  }
 
-      
+      wrote_i2s = false;
       // Deal with all the messages in the queue
       while (uxQueueMessagesWaiting(i2s_queue_handle) > 0) {
-         if (xQueuePeek(i2s_queue_handle, &i2s_evt, portMAX_DELAY) == pdTRUE){ // Doesn't remove item from queue
+         if (xQueuePeek(i2s_queue_handle, &i2s_evt, 0) == pdTRUE){ // Doesn't remove item from queue
             switch (i2s_evt.type) {
                case I2S_EVENT_TX_DONE:
                   while (bytes_written != bytes_read) {
                      i2s_write(I2S_NUM, audio_block.buf+bytes_written, bytes_read-bytes_written, &bytes_written, 1);
                   }
+                  wrote_i2s = true;
 
                   while (bytes_written == bytes_read) {
                      if (xQueueReceive(audio_buffer_handle, &audio_block, portMAX_DELAY) == pdTRUE) {
@@ -228,13 +229,14 @@ void audioTaskFunc(void * pvParameters) {
                            // Serial.println("DMA BUF FULL");
                            break;
                         }
+                        wrote_i2s = true;
                      } else {
                         bytes_written = 0;
                         //   Serial.println("BUF EMPTY");
                         break;
                      }
                   }
-                  xQueueReceive(i2s_queue_handle, &i2s_evt, portMAX_DELAY);
+                  if (wrote_i2s) {xQueueReceive(i2s_queue_handle, &i2s_evt, portMAX_DELAY);}
                   break;
                default:
                   xQueueReceive(i2s_queue_handle, &i2s_evt, portMAX_DELAY);   // Ignore every other message for now
@@ -248,6 +250,8 @@ void audioTaskFunc(void * pvParameters) {
 
 void setup() {
    Serial.begin(57600);
+
+   pinMode(out_pin, OUTPUT);
 
    Serial.println("Starting WiFi");
    if (startWIFI() == ESP_OK) {
@@ -282,7 +286,7 @@ void setup() {
                   NULL,
                   1,   // Task Priority, IPC priority: 24, idle priority: 0
                   &audio_task_handle,
-                  1);
+                  0);
 
    if(task_made != pdPASS){
       Serial.println("Failed to create audio task!");
@@ -296,7 +300,7 @@ void setup() {
                   NULL,
                   0,   // Task Priority, IPC priority: 24, idle priority: 0
                   &communication_task_handle,
-                  0);
+                  1);
 
    if(task_made != pdPASS){
       Serial.println("Failed to create communication task!");
