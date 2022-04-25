@@ -16,39 +16,45 @@ const char PASSWORD[] = "";
 WiFiUDP udp;
 WiFiClient client;
 const int udp_port = 3333;                            // Local UDP port
-IPAddress remote = IPAddress(10, 31, 69, 132);        // UDP server IP address, hardcoded for now
+IPAddress remote = IPAddress(10, 31, 52, 17);        // UDP server IP address, hardcoded for now
 const int remote_port = 56971;                        // UDP server port, hardcoded
 
-const int AUDIO_BUF_SIZE = 88200;
-const int TRANSFER_BUF_SIZE = 1024;
-cbuf audio_buffer = cbuf(AUDIO_BUF_SIZE);          // Circular buffer for audio data recieved from UDP
+const int AUDIO_BUF_SIZE = 100;         // number of audio blocks in queue
+const int AUDIO_BLOCK_SIZE = 1024;
+const int TRANSFER_BUF_SIZE = AUDIO_BLOCK_SIZE;
+QueueHandle_t audio_buffer_handle;          // Queue for audio data recieved from UDP
 char transfer_buffer[TRANSFER_BUF_SIZE];           // Buffer to transfer audio data from circular buffer to DMA buffers
 size_t bytes_written = 0;
 int bytes_read = 0;
 
+typedef struct AudioBlockStruct {
+  int len;
+  char buf[AUDIO_BLOCK_SIZE];
+} AudioBlock;
+
 // int16_t test_buffer[AUDIO_BUF_SIZE];
 // int test_buf_i = 0;
 
-static const i2s_port_t I2S_NUM = I2S_NUM_0;    // ESP32S2 only has 1 I2S peripheral
-static const uint32_t I2S_SAMPLE_RATE = 44100;
-static const uint8_t I2S_BUF_COUNT = 8;
-static const int I2S_MCK_IO = GPIO_NUM_6;       // I2S pin definitions
-static const int I2S_BCK_IO = GPIO_NUM_4;
-static const int I2S_WS_IO = GPIO_NUM_2;
-static const int I2S_DO_IO = GPIO_NUM_3;
-static const int I2S_DI_IO = GPIO_NUM_5;
-static QueueHandle_t i2s_queue_handle;
+const i2s_port_t I2S_NUM = I2S_NUM_0;    // ESP32 has 2 I2S peripherals
+const uint32_t I2S_SAMPLE_RATE = 44100;
+const uint8_t I2S_BUF_COUNT = 8;
+const int I2S_MCK_IO = GPIO_NUM_0;       // I2S pin definitions
+const int I2S_BCK_IO = GPIO_NUM_25;
+const int I2S_WS_IO = GPIO_NUM_32;
+const int I2S_DO_IO = GPIO_NUM_33;
+const int I2S_DI_IO = GPIO_NUM_26;
+QueueHandle_t i2s_queue_handle;
+
+const int out_pin = 12;
+
+TaskHandle_t communication_task_handle = NULL;
+TaskHandle_t audio_task_handle = NULL;
 
 enum StreamStates{Started, Paused, Stopped};       // States for state machine
 enum StreamStates state;
 
 unsigned long time_last_heartbeat = 0;
 int heartbeat_period_ms = 3000;        // Heardbeat message period (send state)
-
-unsigned long time_last_loop = 0;
-int loop_period_us = 5000;
-
-unsigned long last = 0;
 
 esp_err_t initI2S() {
    i2s_config_t i2s_config = {
@@ -132,40 +138,176 @@ esp_err_t startUDP() {
    return ESP_OK;
 }
 
+void commTaskFunc(void * pvParameters) {
+   enum StreamStates state_to_send;
+   bool to_send = false;
+
+   start_stream();
+
+   while (true) {
+      to_send = false;
+
+      // Receive data from TCP server
+      int buf_room = uxQueueSpacesAvailable(audio_buffer_handle);
+      if (client.available() > TRANSFER_BUF_SIZE && buf_room > 1) {
+         AudioBlock audio_block;
+         audio_block.len = client.read((uint8_t*) audio_block.buf, TRANSFER_BUF_SIZE); // Number of bytes read
+         xQueueSend(audio_buffer_handle, &audio_block, portMAX_DELAY);
+      }
+
+      switch (state) {
+         case Paused:
+            if (buf_room > AUDIO_BUF_SIZE*0.7) {
+               state = Started;
+               to_send = true;
+            }
+            break;
+         case Started:
+            if (buf_room < AUDIO_BUF_SIZE*0.3) {
+               state = Paused;
+               to_send = true;
+            }
+            break;
+         case Stopped:
+            break;
+      }
+
+      if (to_send || millis() - time_last_heartbeat > heartbeat_period_ms) {
+         to_send = false;
+         time_last_heartbeat = millis();
+         switch (state) {
+            case Started:
+               start_stream();
+               break;
+            case Paused:
+               pause_stream();
+               break;
+            case Stopped:
+               stop_stream();
+               break;
+         }
+      }
+
+      vTaskDelay(3.0 / portTICK_PERIOD_MS);
+   }
+}
+
+void audioTaskFunc(void * pvParameters) {
+   i2s_event_t i2s_evt;
+   AudioBlock audio_block;
+
+   bool wrote_i2s = false;
+
+   while (true) {
+      //  if (audio_buffer.available() == 0) {
+      //    audio_buffer.write((char*) test_buffer, AUDIO_BUF_SIZE);
+      //  }
+
+      wrote_i2s = false;
+      // Deal with all the messages in the queue
+      while (uxQueueMessagesWaiting(i2s_queue_handle) > 0) {
+         if (xQueuePeek(i2s_queue_handle, &i2s_evt, 0) == pdTRUE){ // Doesn't remove item from queue
+            switch (i2s_evt.type) {
+               case I2S_EVENT_TX_DONE:
+                  while (bytes_written != bytes_read) {
+                     i2s_write(I2S_NUM, audio_block.buf+bytes_written, bytes_read-bytes_written, &bytes_written, 1);
+                  }
+                  wrote_i2s = true;
+
+                  while (bytes_written == bytes_read) {
+                     if (xQueueReceive(audio_buffer_handle, &audio_block, portMAX_DELAY) == pdTRUE) {
+                        bytes_read = audio_block.len;
+
+                        if (bytes_read == 0) {
+                        bytes_written = 0;
+                        //   Serial.println("BUF EMPTY");
+                        break;
+                        }
+                        bytes_written = 0;
+                        i2s_write(I2S_NUM, audio_block.buf, bytes_read, &bytes_written, 1);
+                        if (bytes_written == 0) {
+                           // Serial.println("DMA BUF FULL");
+                           break;
+                        }
+                        wrote_i2s = true;
+                     } else {
+                        bytes_written = 0;
+                        //   Serial.println("BUF EMPTY");
+                        break;
+                     }
+                  }
+                  if (wrote_i2s) {xQueueReceive(i2s_queue_handle, &i2s_evt, portMAX_DELAY);}
+                  break;
+               default:
+                  xQueueReceive(i2s_queue_handle, &i2s_evt, portMAX_DELAY);   // Ignore every other message for now
+                  break;
+            }
+         }
+      }
+
+   }
+}
+
 void setup() {
-   Serial.begin(115200);
+   Serial.begin(57600);
+
+   pinMode(out_pin, OUTPUT);
 
    Serial.println("Starting WiFi");
    if (startWIFI() == ESP_OK) {
       Serial.println("WiFi started!");
-   }
+   } else {ESP.restart();}
    Serial.println("Starting TCP");
    if (startTCP() == ESP_OK) {
       Serial.println("TCP connected!");
-   }
+   } else {ESP.restart();}
    Serial.println("Starting I2S");
    if (initI2S() == ESP_OK) {
       Serial.println("I2S started!");
-   }
+   } else {ESP.restart();}
 
    // for (int i = 0; i < AUDIO_BUF_SIZE; i++) {
    //    test_buffer[i] = 32768 * i / AUDIO_BUF_SIZE;
    // }
 
-   i2s_event_t tx_done = {
-      .type = I2S_EVENT_TX_DONE,
-      .size = 0,
-   };
+   // i2s_event_t tx_done = {
+   //    .type = I2S_EVENT_TX_DONE,
+   //    .size = 0,
+   // };
 
-   // Put I2S_BUF_COUNT I2S_EVENT_TX_DONE messages on queue, main loop puts more data into DMA buffer when
-   // transmission is done (when there is a I2S_EVENT_TX_DONE message), so it needs to be started
-   for (int i = 0; i < I2S_BUF_COUNT; i++) {
-      xQueueSend(i2s_queue_handle, &tx_done, portMAX_DELAY);
+   audio_buffer_handle = xQueueCreate(AUDIO_BUF_SIZE, sizeof(AudioBlock));
+
+   BaseType_t task_made;
+
+   task_made = xTaskCreatePinnedToCore(
+                  audioTaskFunc,
+                  "AUDIO_TASK",
+                  5000,
+                  NULL,
+                  1,   // Task Priority, IPC priority: 24, idle priority: 0
+                  &audio_task_handle,
+                  0);
+
+   if(task_made != pdPASS){
+      Serial.println("Failed to create audio task!");
+      ESP.restart();
    }
 
-   // audio_buffer.flush();
+   task_made = xTaskCreatePinnedToCore(
+                  commTaskFunc,
+                  "COMM_TASK",
+                  5000,
+                  NULL,
+                  0,   // Task Priority, IPC priority: 24, idle priority: 0
+                  &communication_task_handle,
+                  1);
 
-   start_stream();
+   if(task_made != pdPASS){
+      Serial.println("Failed to create communication task!");
+      ESP.restart();
+   }
+
+   
 }
 
 void start_stream() {
@@ -188,77 +330,5 @@ void print_buf_ints(int len) {
 }
 
 void loop() {
-   // Heartbeat to server
-
-   time_last_loop = micros();
-
-   // while (micros() - time_last_loop < loop_period_us) {delayMicroseconds(500);}
-
-   if (client.available() > 0 && audio_buffer.room() > TRANSFER_BUF_SIZE) {
-      int len = client.read((uint8_t*) transfer_buffer, TRANSFER_BUF_SIZE); // Number of bytes read
-      audio_buffer.write(transfer_buffer, len);
-   }
-
-   i2s_event_t i2s_evt;
-   bool to_exit = false;
-
-  //  if (audio_buffer.available() == 0) {
-  //    audio_buffer.write((char*) test_buffer, AUDIO_BUF_SIZE);
-  //  }
-
-   // Deal with all the messages in the queue
-   while (uxQueueMessagesWaiting(i2s_queue_handle) > 0 && !to_exit) {
-      if (xQueuePeek(i2s_queue_handle, &i2s_evt, portMAX_DELAY) == pdTRUE){ // Doesn't remove item from queue
-         switch (i2s_evt.type) {
-            case I2S_EVENT_TX_DONE:
-               while (bytes_written != bytes_read) {
-                  i2s_write(I2S_NUM, transfer_buffer+bytes_written, bytes_read-bytes_written, &bytes_written, 1);
-               }
-
-               while (bytes_written == bytes_read) {
-                  bytes_read = audio_buffer.read(transfer_buffer, TRANSFER_BUF_SIZE);
-                  if (bytes_read == 0) {
-                    bytes_written = 0;
-                  //   Serial.println("BUF EMPTY");
-                    break;
-                  }
-                  bytes_written = 0;
-                  i2s_write(I2S_NUM, transfer_buffer, bytes_read, &bytes_written, 1);
-                  if (bytes_written == 0) {
-                     // Serial.println("DMA BUF FULL");
-                     break;
-                  }
-               }
-               xQueueReceive(i2s_queue_handle, &i2s_evt, portMAX_DELAY);
-               break;
-            default:
-               xQueueReceive(i2s_queue_handle, &i2s_evt, portMAX_DELAY);   // Ignore every other message for now
-               break;
-         }
-      }
-   }
-
-   if (millis() - time_last_heartbeat > heartbeat_period_ms) {
-      time_last_heartbeat = millis();
-      if (state == Started) {start_stream();}
-      else if (state == Paused) {pause_stream();}
-      else if (state == Stopped) {stop_stream();}
-   }
-
-   switch (state) {
-      case Paused:
-         if (audio_buffer.room() > AUDIO_BUF_SIZE/2) {
-            start_stream();
-            state = Started;
-         }
-         break;
-      case Started:
-         if (audio_buffer.room() < AUDIO_BUF_SIZE/10) {
-            pause_stream();
-            state = Paused;
-         }
-         break;
-      case Stopped:
-         break;
-   }
+   vTaskDelay(1.0 / portTICK_PERIOD_MS);
 }
