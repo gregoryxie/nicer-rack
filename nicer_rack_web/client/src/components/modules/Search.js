@@ -33,9 +33,18 @@ const Search = () => {
     .then(function (response) {
       return response.json();
     }).then(function (text) {
-      console.log("GET RESPONSE");
+      console.log("ADD_LINK");
       console.log(text)
     });
+    
+    // var url2 = 'http://localhost:5000/add_song_queue/' + yt_query;
+    // fetch(url2)
+    // .then(function (response) {
+    //   return response.json();
+    // }).then(function (text) {
+    //   console.log("ADD_SONG_QUEUE");
+    //   console.log(text)
+    // });
   }
 
   return (
