@@ -4,6 +4,7 @@ import socketserver
 from datetime import datetime
 import time
 from data_handler import retrieve_all_data, retrieve_data
+from link_handler import convert_mp3_to_wav
 import numpy as np
 import math
 import queue
@@ -115,7 +116,14 @@ def try_recv_web(conn, first_recv=False):
          link = data.decode("utf-8")
          print(link)
          print("Extracted this data from message:")
-         print(retrieve_data(link))
+         data = retrieve_data(link)
+         print(data)
+
+         path = data[4]
+         samples = convert_mp3_to_wav(path)
+         print("Length of samples: " + str(len(samples)))
+         print("100 samples: ")
+         print(samples[100000:100100])
 
       return True
    except TimeoutError as e:

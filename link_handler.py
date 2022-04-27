@@ -3,7 +3,6 @@ Handles YouTube links by extracting the necessary information to properly
 store information in the database.
 """
 import os
-from webbrowser import get
 import pytube
 import wave
 import struct
@@ -74,7 +73,7 @@ def convert_mp3_to_wav(path):
     except:
         sound = AudioSegment.from_file(path, format="mp4")
 
-    # Export the sound into a .wav file in the root folder to be read
+    # Export the sound into a .wav file to be read
     sound.export(filename_wav, format="wav")
 
     # Use wave to read .wav file and extract samples to array
