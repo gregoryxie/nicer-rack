@@ -1,7 +1,7 @@
 .Song {
   position: relative;
   width: 500px;
-  height: 20vh;
+  height: 25vh;
   background-color: rgb(255, 165, 0);
   margin-bottom: 30px;
 }
@@ -37,4 +37,8 @@
 
 .content p {
   text-decoration: none;
+}
+
+.Song-submit-container {
+  background-color: rgb(255, 165, 0);
 }

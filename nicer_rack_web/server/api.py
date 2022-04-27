@@ -56,7 +56,14 @@ def download_link(link=None):
 
 @app.route('/all_song_info/')
 def all_song_info():
-    return retrieve_all_data()
+    data = retrieve_all_data()
+    data = [{"timestamp": item[0],
+            "title": item[1],
+            "length": item[2],
+            "link": item[3],
+            "filepath": item[4],
+            "thumbnail": item[5]} for item in data]
+    return {'message': 'All song info successfully retrived', 'data': data}
 
 # GET Request
 @app.route('/get_queue/')
@@ -71,9 +78,9 @@ def add_song_queue(link=None):
     data = retrieve_data(link)
     if not data:
         return {'message': 'Invalid link given'}
-    title, duration, yt_link, filepath, thumbnail = data
+    timestamp, title, duration, yt_link, filepath, thumbnail = data
 
-    obj = {'title': title, 'thumbnail': thumbnail}
+    obj = {'title': title, 'link': yt_link, 'thumbnail': thumbnail}
     queue.append(obj)
     return obj
 

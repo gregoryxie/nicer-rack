@@ -4,20 +4,20 @@ import { useState, useEffect } from "react";
 import Song from "./Song.js"
 
 import "../../utilities.css";
-import "./Queue.css";
+import "./Display.css";
 
-const Queue = () => {
+const Display = () => {
   const [items, setItems] = useState([{}]);
 
   useEffect(() => {
     let mounted = true;
-    var url = 'http://localhost:5000/get_queue/';
+    var url = 'http://localhost:5000/all_song_info/';
     fetch(url)
     .then(function (response) {
       return response.json();
     }).then(function (list) {
       if (mounted) {
-        setItems(list);
+        setItems(list.data);
       }
       return () => mounted = false;
     });
@@ -26,12 +26,12 @@ const Queue = () => {
   console.log(items);
 
   return (
-    <div className="Queue-container">
-      <div className="Queue-title">Queue</div>
+    <div className="Display-container">
+      <div className="Display-title">Downloaded Songs</div>
       {items.length > 0 && (
         <ul>
           {items.map(item => (
-            <Song title={item.title} link={item.link} thumbnailURL={item.thumbnail} />
+            <Song title={item.title} link={item.link} thumbnailURL={item.thumbnail} display={true} />
           ))}
         </ul>
       )}
@@ -39,4 +39,4 @@ const Queue = () => {
   )
 }
 
-export default Queue;
+export default Display;
