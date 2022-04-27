@@ -69,13 +69,14 @@ def convert_mp3_to_wav(path):
     # In some cases the dependency ffmpeg will misread a .mp3 file, and requires a .mp4 container
     # https://stackoverflow.com/questions/70660431/couldntdecodeerror-decoding-failed-ffmpeg-returned-error-code-69
     try:
-        sound = AudioSegment.from_file(path, "mp3")
+        sound = AudioSegment.from_file(path, "mp3", frame_rate=44100)
     except:
-        sound = AudioSegment.from_file(path, format="mp4")
-    # sound.set_frame_rate(44100)
+        sound = AudioSegment.from_file(path, format="mp4", frame_rate=44100)
+    sound = sound.set_frame_rate(44100)
     
     # Export the sound into a .wav file to be read
-    sound.export(filename_wav, format="wav", parameters=["-ar", "44100"])
+    sound.export(filename_wav, format="wav")
+
 
     # Use wave to read .wav file and extract samples to array
     if os.path.exists(filename_wav):
