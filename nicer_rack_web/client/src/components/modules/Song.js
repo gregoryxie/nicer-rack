@@ -14,8 +14,12 @@ const Song = (props) => {
   return (
     <div className="Song">
         <div className="content">
-          <p>{props.title}</p>
-          <p>{props.thumbnailURL}</p>
+          <div className="title">
+            <p>{props.title}</p>  
+          </div>
+          <div className="img">
+            <img src={props.thumbnailURL} width="150" height="150"/>
+          </div>
         </div>
     </div>
   );

@@ -1,8 +1,9 @@
 .Song {
   position: relative;
-  width: 40vw;
-  height: 10vh;
+  width: 500px;
+  height: 20vh;
   background-color: rgb(255, 165, 0);
+  margin-bottom: 30px;
 }
 
 .Song:after {
@@ -22,11 +23,18 @@
   height: 100%;
 }
 
-.content p {
-  margin: 8px;
-  text-decoration: none;
+.title {
+  width: 45vh;
+  height: 8vh;
+  text-align: center;
+  margin-right: 50px;
 }
 
-.Song a {
-  color: black;
+.img {
+  margin-right: 5px;
+  align-items: center;
+}
+
+.content p {
+  text-decoration: none;
 }
