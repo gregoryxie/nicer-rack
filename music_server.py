@@ -3,12 +3,14 @@ import threading
 import socketserver
 from datetime import datetime
 import time
+from data_handler import retrieve_all_data, retrieve_data
 import numpy as np
 import math
 import queue
 
-HOST = '' # bind to a bunch of stuff? idk lol
+HOST = '127.0.0.1' # bind to a bunch of stuff? idk lol
 PORT = 56971 # random port between 49152–65535
+PORT_WEB = 8080
 
 clients_lock = threading.Condition()
 clients = {} # client_address: {'last_seen': datetime, 'state': int, 'song_i':int, 'done':bool}
@@ -94,9 +96,38 @@ def try_send_esp(conn, client_addr):
       clients_lock.notify()
       return True
    
-   
-      
+  # try to receive bytes from ESP
+def try_recv_web(conn, first_recv=False):
+   try:
+      if first_recv:
+         data = conn.recv(1)
+      else:
+         data = conn.recv(1, socket.MSG_DONTWAIT)
 
+      # Invariant: Assumes that the length of any youtube link url descriptor is within 1 byte
+      # Very reasonable assumption
+      int_data = int.from_bytes(data, "big")
+      if (int_data):
+         print("Received this message from webserver:")
+         data = conn.recv(int_data, socket.MSG_DONTWAIT)
+
+         # This is the youtube url argument of the song to play.
+         link = data.decode("utf-8")
+         print(link)
+         print("Extracted this data from message:")
+         print(retrieve_data(link))
+
+      return True
+   except TimeoutError as e:
+      print("socket timeout")
+      return False
+   except (TypeError,BlockingIOError) as e:
+      return True
+   except Exception as e:
+      print(type(e))
+      print(e)
+      return True 
+      
 def check_timeout_esp(conn, client_addr):
    now = datetime.now()
    with clients_lock:
@@ -134,6 +165,22 @@ def client_serve_func(conn, client_addr):
          if not try_send_esp(conn, client_addr):
             break
 
+def web_serve_func(conn):
+   start = datetime.now()
+
+   with conn:
+      if not try_recv_web(conn, first_recv=True):
+         return
+
+      while True:
+         while (datetime.now() - start).total_seconds() < loop_time:
+            time.sleep(loop_time/20)
+         
+         start = datetime.now()
+
+         if not try_recv_web(conn):
+            break
+
 def server_thread_func():
    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
       s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -146,6 +193,19 @@ def server_thread_func():
          client_thread = threading.Thread(target=client_serve_func, args=(conn, client_addr))
          client_thread.daemon = True
          client_thread.start()
+
+def web_thread_func():
+   with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+      s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+      s.bind((HOST, PORT_WEB))
+      s.listen(1)
+
+      while True:
+         conn, web_addr = s.accept()
+
+         web_thread = threading.Thread(target=web_serve_func, args=(conn,))
+         web_thread.daemon = True
+         web_thread.start()
 
 def reset_song_i():
    with clients_lock:
@@ -174,9 +234,15 @@ def run_server():
    # curr_song = int_array_to_bytes(np.ones(44000, dtype=np.int16)*2**14)
    # curr_song = bytes([0, 64, 32, 64]*22000)
 
+   # Thread for ESP communication
    server_thread = threading.Thread(target=server_thread_func)
    server_thread.daemon = True
    server_thread.start()
+
+   # Thread for Webserver communication
+   web_thread = threading.Thread(target=web_thread_func)
+   web_thread.daemon = True
+   web_thread.start()
 
    start = datetime.now()
 

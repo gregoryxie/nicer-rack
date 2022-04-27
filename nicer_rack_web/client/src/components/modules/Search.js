@@ -28,23 +28,27 @@ const Search = () => {
       yt_query = yt_query.split("&",1)[0];
     }
 
-    var url = 'http://localhost:5000/add_link/' + yt_query;
-    fetch(url)
+    // Create url variables for API requests
+    var add_url = 'http://localhost:5000/download_link/' + yt_query;
+    var play_url = 'http://localhost:5000/play_song/' + yt_query;
+
+    // Request API to download the link to the server
+    fetch(add_url)
     .then(function (response) {
       return response.json();
     }).then(function (text) {
-      console.log("ADD_LINK");
+      console.log("DOWNLOAD_LINK");
       console.log(text)
+    }).then(function (resp) {
+      // Then request API to play the song. For demo purposes
+      fetch(play_url)
+      .then(function (response) {
+        return response.json();
+      }).then(function (text) {
+        console.log("PLAY LINK")
+        console.log(text)
+      });   
     });
-    
-    // var url2 = 'http://localhost:5000/add_song_queue/' + yt_query;
-    // fetch(url2)
-    // .then(function (response) {
-    //   return response.json();
-    // }).then(function (text) {
-    //   console.log("ADD_SONG_QUEUE");
-    //   console.log(text)
-    // });
   }
 
   return (
