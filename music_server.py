@@ -9,7 +9,7 @@ import numpy as np
 import math
 import queue
 
-HOST = '127.0.0.1' # bind to a bunch of stuff? idk lol
+HOST = '' # bind to a bunch of stuff? idk lol
 PORT = 56971 # random port between 49152–65535
 PORT_WEB = 8080
 
@@ -28,6 +28,7 @@ bytes_per_loop = samples_per_loop*bytes_per_sample
 # print(loop_time)
 
 curr_song = 0
+song_cv = threading.Condition()
 
 # try to receive bytes from ESP, try to send
 def try_recv_esp(conn, client_addr, first_recv=False):
@@ -77,11 +78,15 @@ def try_send_esp(conn, client_addr):
          return True
 
       if start + bytes_per_loop > len(curr_song):
-         data_bytes = curr_song[start:]
+         with song_cv:
+            data_bytes = curr_song[start:]
+            song_cv.notify()
          clients[client_addr]['song_i'] = len(curr_song)
          clients[client_addr]['done'] = True
       else:
-         data_bytes = curr_song[start:start + bytes_per_loop]
+         with song_cv:
+            data_bytes = curr_song[start:start + bytes_per_loop]
+            song_cv.notify()
          clients[client_addr]['song_i'] += bytes_per_loop
          clients[client_addr]['done'] = False
 
@@ -99,6 +104,7 @@ def try_send_esp(conn, client_addr):
    
   # try to receive bytes from ESP
 def try_recv_web(conn, first_recv=False):
+   global curr_song
    try:
       if first_recv:
          data = conn.recv(1)
@@ -119,7 +125,16 @@ def try_recv_web(conn, first_recv=False):
          data = retrieve_data(link)
          print(data)
 
-         # samples = convert_mp3_to_wav(link)
+         path = data[4]
+         samples = convert_mp3_to_wav(path)
+         
+         with song_cv:
+            curr_song = int_array_to_bytes(samples, len=2)
+            song_cv.notify()
+         reset_song_i()
+         # print("Length of samples: " + str(len(samples)))
+         # print("100 samples: ")
+         # print(samples[100000:100100])
 
       return True
    except TimeoutError as e:
