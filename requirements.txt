@@ -4,3 +4,4 @@ npm
 pydub
 flask
 python-dotenv
+librosa
