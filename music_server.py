@@ -119,11 +119,7 @@ def try_recv_web(conn, first_recv=False):
          data = retrieve_data(link)
          print(data)
 
-         path = data[4]
          samples = convert_mp3_to_wav(path)
-         print("Length of samples: " + str(len(samples)))
-         print("100 samples: ")
-         print(samples[100000:100100])
 
       return True
    except TimeoutError as e:
