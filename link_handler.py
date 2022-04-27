@@ -72,10 +72,10 @@ def convert_mp3_to_wav(path):
         sound = AudioSegment.from_file(path, "mp3")
     except:
         sound = AudioSegment.from_file(path, format="mp4")
-    sound.set_frame_rate(44100)
+    # sound.set_frame_rate(44100)
     
     # Export the sound into a .wav file to be read
-    sound.export(filename_wav, format="wav")
+    sound.export(filename_wav, format="wav", parameters=["-ar", "44100"])
 
     # Use wave to read .wav file and extract samples to array
     if os.path.exists(filename_wav):
