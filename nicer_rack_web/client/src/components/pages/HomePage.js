@@ -1,12 +1,14 @@
 import React, { useEffect } from "react";
 import Search from "../modules/Search.js";
 import Queue from "../modules/Queue.js";
+import Display from "../modules/Display.js";
 
 const HomePage = () => {
   return (
     <>
       <Search />
       <Queue />
+      <Display />
     </>
   );
 }

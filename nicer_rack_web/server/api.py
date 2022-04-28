@@ -50,13 +50,19 @@ def download_link(link=None):
     # Insert the data extracted into the db for future use.
     inserted = insert_data(title, duration, yt_link, filepath, thumbnail)
 
-    obj = {'title': title, 'thumbnail': thumbnail}
-    queue.append(obj)
-    return jsonify(queue)
+    obj = {'title': title, 'link': yt_link, 'thumbnail': thumbnail}
+    return jsonify(obj)
 
 @app.route('/all_song_info/')
 def all_song_info():
-    return retrieve_all_data()
+    data = retrieve_all_data()
+    data = [{"timestamp": item[0],
+            "title": item[1],
+            "length": item[2],
+            "link": item[3],
+            "filepath": item[4],
+            "thumbnail": item[5]} for item in data]
+    return {'message': 'All song info successfully retrived', 'data': data}
 
 # GET Request
 @app.route('/get_queue/')
@@ -66,16 +72,35 @@ def get_queue():
 @app.route('/add_song_queue/<link>')
 @app.route('/add_song_queue/')
 def add_song_queue(link=None):
+    global queue
     if not link:
         return {'message': 'No link given'}
     data = retrieve_data(link)
     if not data:
         return {'message': 'Invalid link given'}
-    title, duration, yt_link, filepath, thumbnail = data
+    timestamp, title, duration, yt_link, filepath, thumbnail = data
 
-    obj = {'title': title, 'thumbnail': thumbnail}
+    obj = {'title': title, 'link': yt_link, 'thumbnail': thumbnail, 'index': len(queue)}
     queue.append(obj)
     return obj
+
+@app.route('/remove_song_queue/<link>/<index>')
+@app.route('/remove_song_queue/<link>')
+@app.route('/remove_song_queue/')
+def remove_song_queue(link=None, index=None):
+    global queue
+    if not link:
+        return {'message': 'No link given'}
+    if not index:
+        return {'message': 'No index given'}
+
+    data = retrieve_data(link)
+    if not data:
+        return {'message': 'Invalid link given'}
+    timestamp, title, duration, yt_link, filepath, thumbnail = data
+
+    queue = [item for item in queue if (item['link'] != yt_link or item['index'] != int(index))] 
+    return {'title': title, 'link': yt_link, 'thumbnail': thumbnail}
 
 @app.route('/play_song/<link>')
 @app.route('/play_song/')
