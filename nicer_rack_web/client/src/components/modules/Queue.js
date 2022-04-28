@@ -31,7 +31,7 @@ const Queue = () => {
       {items.length > 0 && (
         <ul>
           {items.map(item => (
-            <Song title={item.title} link={item.link} thumbnailURL={item.thumbnail} />
+            <Song title={item.title} link={item.link} thumbnailURL={item.thumbnail} queue_index={item.index} display={false}/>
           ))}
         </ul>
       )}

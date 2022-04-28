@@ -31,7 +31,7 @@ const Display = () => {
       {items.length > 0 && (
         <ul>
           {items.map(item => (
-            <Song title={item.title} link={item.link} thumbnailURL={item.thumbnail} display={true} />
+            <Song title={item.title} link={item.link} thumbnailURL={item.thumbnail} queue_index={item.index} display={true} />
           ))}
         </ul>
       )}
