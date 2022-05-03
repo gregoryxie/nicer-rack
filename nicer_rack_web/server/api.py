@@ -82,6 +82,11 @@ def add_song_queue(link=None):
 
     obj = {'title': title, 'link': yt_link, 'thumbnail': thumbnail, 'index': len(queue)}
     queue.append(obj)
+
+    # If this is the first song in the queue, send the link to play
+    if len(queue) == 1:
+        play_song(link)
+
     return obj
 
 @app.route('/remove_song_queue/<link>/<index>')
