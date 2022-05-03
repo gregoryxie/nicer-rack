@@ -9,7 +9,7 @@ import "./Queue.css";
 const Queue = (props) => {
   const [items, setItems] = useState([{}]);
 
-  useEffect(() => {
+  function getQueue() {
     var url = 'http://localhost:5000/get_queue/';
     fetch(url)
     .then(function (response) {
@@ -17,9 +17,18 @@ const Queue = (props) => {
     }).then(function (list) {
       setItems(list);
       props.alterSongs(list.length);
-    });
+    }); 
+  }
+
+  useEffect(() => {
+    getQueue();
+    const interval = setInterval(() => {
+      getQueue();
+    }, 5000);
+    return () => clearInterval(interval);
   }, [props.songs]);
 
+  
   console.log(items);
 
   return (
