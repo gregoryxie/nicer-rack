@@ -28,7 +28,7 @@ bytes_per_loop = samples_per_loop*bytes_per_sample
 # print(loop_time)
 
 curr_song = 0
-next_song = 0
+next_song = []
 song_cv = threading.Condition()
 
 # try to receive bytes from ESP, try to send
@@ -152,10 +152,10 @@ def try_recv_web(conn, first_recv=False):
             with song_cv:
                reset_song_i()
                curr_song = next_song
-               next_song = 0
+               next_song = []
                song_cv.notify()
          elif command == 4:
-            next_song = 0
+            next_song = []
          if command == 5:
             next_song = int_array_to_bytes(samples, len=2)
          elif command == 6:
