@@ -2,4 +2,5 @@ pytube3
 pytube
 npm
 flask
+flask_cors
 python-dotenv
