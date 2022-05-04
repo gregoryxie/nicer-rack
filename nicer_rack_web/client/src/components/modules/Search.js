@@ -30,7 +30,6 @@ const Search = () => {
 
     // Create url variables for API requests
     var add_url = 'http://localhost:5000/download_link/' + yt_query;
-    var play_url = 'http://localhost:5000/play_song/' + yt_query;
 
     // Request API to download the link to the server
     fetch(add_url)
@@ -39,15 +38,6 @@ const Search = () => {
     }).then(function (text) {
       console.log("DOWNLOAD_LINK");
       console.log(text)
-    }).then(function (resp) {
-      // Then request API to play the song. For demo purposes
-      fetch(play_url)
-      .then(function (response) {
-        return response.json();
-      }).then(function (text) {
-        console.log("PLAY LINK")
-        console.log(text)
-      });   
     });
   }
 

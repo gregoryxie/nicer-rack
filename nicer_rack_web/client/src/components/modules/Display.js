@@ -21,7 +21,7 @@ const Display = (props) => {
       }
       return () => mounted = false;
     });
-  }, []);
+  }, [props.songs]);
 
   console.log(items);
 

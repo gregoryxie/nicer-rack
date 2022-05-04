@@ -60,7 +60,7 @@ def handle_queue():
     send_link_socket(curr_song_link, 6)
 
     start = time.time()
-    loop_time = 0.05
+    loop_time = 0.1
     while True:
         while (time.time() - start) < loop_time:
             time.sleep(loop_time/20)
@@ -100,7 +100,7 @@ def handle_queue():
                curr_song_link = queue[0]['link']
                curr_song_start = time.time()
                next_song_sent = False
-               next_song_link = False
+               next_song_link = None
 
             # If song is over, update queue by removing first element and updating indices
             if time.time() - curr_song_start > curr_song_duration:
@@ -110,8 +110,11 @@ def handle_queue():
                 
                 # Update state variables for queue checking
                 next_song_sent = False
+                next_song_link = None
                 curr_song_start = time.time()
                 curr_song_duration = queue[0]['duration']
+                curr_song_ID = queue[0]['time_added']
+                curr_song_link = queue[0]['link']
 
             # Release lock on queue
             queue_lock.notify()

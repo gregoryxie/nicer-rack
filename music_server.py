@@ -20,13 +20,14 @@ esp_timeout = 120 # seconds
 
 samples_per_second = 44000
 samples_per_loop = 500 # Also the size of the UDP message, MTU max 1300 bytes per message
-song_rate = 3   # Rate at which song is streamed, should be > 1
+song_rate = 5   # Rate at which song is streamed, should be > 1
 loop_time = samples_per_loop/samples_per_second/song_rate
 bytes_per_sample = 2
 bytes_per_loop = samples_per_loop*bytes_per_sample
 
 # print(loop_time)
 
+paused = False
 curr_song = 0
 next_song = []
 song_cv = threading.Condition()
@@ -71,37 +72,44 @@ def try_recv_esp(conn, client_addr, first_recv=False):
       return True
 
 def try_send_esp(conn, client_addr):
+   global clients
+   start = None
+   temp_clients = None
    with clients_lock:
       start = clients[client_addr]['song_i']
+      temp_clients = clients
+      clients_lock.notify()
 
-      if clients[client_addr]['state'] == 1 or clients[client_addr]['state'] == 2:
-         clients[client_addr]['done'] = False
-         return True
+   if temp_clients[client_addr]['state'] == 1 or temp_clients[client_addr]['state'] == 2:
+      temp_clients[client_addr]['done'] = False
+      return True
 
+   if not paused:
       if start + bytes_per_loop > len(curr_song):
          with song_cv:
             data_bytes = curr_song[start:]
             song_cv.notify()
-         clients[client_addr]['song_i'] = len(curr_song)
-         clients[client_addr]['done'] = True
+         temp_clients[client_addr]['song_i'] = len(curr_song)
+         temp_clients[client_addr]['done'] = True
       else:
          with song_cv:
             data_bytes = curr_song[start:start + bytes_per_loop]
             song_cv.notify()
-         clients[client_addr]['song_i'] += bytes_per_loop
-         clients[client_addr]['done'] = False
+         temp_clients[client_addr]['song_i'] += bytes_per_loop
+         temp_clients[client_addr]['done'] = False
 
       try:
          conn.send(data_bytes)      #TCP
          # sock.sendto(data_bytes, client_addr)       # UDP
       except BrokenPipeError:
-         clients_lock.notify()
          return False
       except BlockingIOError:
          pass
 
+   with clients_lock:
+      clients = temp_clients
       clients_lock.notify()
-      return True
+   return True
    
   # try to receive bytes from ESP
 def try_recv_web(conn, first_recv=False):
@@ -117,6 +125,7 @@ def try_recv_web(conn, first_recv=False):
       5 - denote msg is next song
       6 - denote msg is current song (play from beginning)"""
 
+   global paused
    global curr_song
    global next_song
    try:
@@ -149,20 +158,24 @@ def try_recv_web(conn, first_recv=False):
          elif command == 2:
             return True
          elif command == 3:
+            paused = True
             with song_cv:
                curr_song = next_song
                next_song = int_array_to_bytes(np.zeros(44100))
                song_cv.notify()
             reset_song_i()
+            paused = False
          elif command == 4:
             next_song = int_array_to_bytes(np.zeros(44100))
          if command == 5:
             next_song = int_array_to_bytes(samples, len=2)
          elif command == 6:
+            paused = True
             with song_cv:
                curr_song = int_array_to_bytes(samples, len=2)
                song_cv.notify()
             reset_song_i()
+            paused = False
 
       return True
    except TimeoutError as e:
