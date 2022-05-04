@@ -66,6 +66,8 @@ def handle_queue():
             time.sleep(loop_time/20)
         start = time.time()
     
+         # Adding song to queue, and skipping current song doesn't send skip current request,
+         # or send next song request
         # Require a lock on queue to read and write to queue based on song duration and api requests
         with queue_lock:
             if not len(queue):
@@ -85,20 +87,20 @@ def handle_queue():
                     next_song_sent = False
                     next_song_link = None
 
-                # Check if current song ID playing matches previous song ID playing. If not,
-                # this means that the current song was skipped
-                if curr_song_ID != queue[0]['time_added']:
-                    # Need to send command to skip currently playing song
-                    send_link_socket(curr_song_link, 3)
-                    # If next song wasn't sent, then send new current song and update state
-                    if not next_song_sent:
-                        send_link_socket(queue[0]['link'], 6)
-                    curr_song_duration = queue[0]['duration']
-                    curr_song_ID = queue[0]['time_added']
-                    curr_song_link = queue[0]['link']
-                    curr_song_start = time.time()
-                    next_song_sent = False
-                    next_song_link = False
+            # Check if current song ID playing matches previous song ID playing. If not,
+            # this means that the current song was skipped
+            if curr_song_ID != queue[0]['time_added']:
+               # Need to send command to skip currently playing song
+               send_link_socket(curr_song_link, 3)
+               # If next song wasn't sent, then send new current song and update state
+               if not next_song_sent:
+                  send_link_socket(queue[0]['link'], 6)
+               curr_song_duration = queue[0]['duration']
+               curr_song_ID = queue[0]['time_added']
+               curr_song_link = queue[0]['link']
+               curr_song_start = time.time()
+               next_song_sent = False
+               next_song_link = False
 
             # If song is over, update queue by removing first element and updating indices
             if time.time() - curr_song_start > curr_song_duration:

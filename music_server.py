@@ -150,19 +150,19 @@ def try_recv_web(conn, first_recv=False):
             return True
          elif command == 3:
             with song_cv:
-               reset_song_i()
                curr_song = next_song
-               next_song = []
+               next_song = int_array_to_bytes(np.zeros(44100))
                song_cv.notify()
+            reset_song_i()
          elif command == 4:
-            next_song = []
+            next_song = int_array_to_bytes(np.zeros(44100))
          if command == 5:
             next_song = int_array_to_bytes(samples, len=2)
          elif command == 6:
             with song_cv:
                curr_song = int_array_to_bytes(samples, len=2)
-               reset_song_i()
                song_cv.notify()
+            reset_song_i()
 
       return True
    except TimeoutError as e:
@@ -277,6 +277,7 @@ def run_server():
 
    x_axis = np.linspace(0, 440*2*np.pi, 44100)
    curr_song = int_array_to_bytes(2**14*np.sin(x_axis))
+   next_song = int_array_to_bytes(np.zeros(44100))
    # x_axis = np.linspace(0, 1, 10000)
    # curr_song = int_array_to_bytes(2**15*x_axis)
    # curr_song = int_array_to_bytes(np.ones(44000, dtype=np.int16)*2**14)
@@ -315,7 +316,7 @@ def run_server():
       if done:
          reset_song_i()
          curr_song = next_song
-         next_song = 0
+         next_song = int_array_to_bytes(np.zeros(44100))
 
 
 if __name__ == "__main__":
