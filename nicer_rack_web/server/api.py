@@ -45,30 +45,61 @@ def send_link_socket(link=None, command=None):
         return False
 
 def handle_queue():
+    global queue
     global queue_handling
+
+    # Initialize variables useful for keeping track of current song playing and next song in queue
+    curr_song_duration = queue[0]['duration']
+    curr_song_ID = queue[0]['time_added']
+    curr_song_link = queue[0]['link']
+    curr_song_start = time.time()
+    next_song_sent = False
+    next_song_link = None
     # Send first song in queue over socket, and monitor the queue
-    next_song_valid = False
-    song_start_time = time.time()
-    song_duration = queue[0]['duration']
-    send_link_socket(queue[0]['link'], 6)
+    send_link_socket(curr_song_link, 6)
 
     while len(queue):
         # Send next song if next song to play is updated, and song playing is almost over
-        if not next_song_valid and time.time() - song_start_time > song_duration * NEXT_SONG_RATIO:
-            next_song_valid = True
-            send_link_socket(queue[1]['link'], 5)
+        if time.time() - curr_song_start > curr_song_duration * NEXT_SONG_RATIO:
+            if len(queue) > 1:
+                if not next_song_sent or next_song_link != queue[1]['link']:
+                    next_song_sent = True
+                    next_song_link = queue[1]['link']
+                    send_link_socket(next_song_link, 5)
+            # If next song was skipped and was last on queue
+            elif len(queue) == 1 and next_song_sent:
+                send_link_socket(next_song_link, 4)
+                next_song_sent = False
+                next_song_link = None
+
+        # Check if current song ID playing matches previous song ID playing. If not,
+        # this means that the current song was skipped
+        if curr_song_ID != queue[0]['time_added']:
+            # Need to send command to skip currently playing song
+            send_link_socket(curr_song_link, 3)
+            # If next song wasn't sent, then send new current song and update state
+            if not next_song_sent:
+                send_link_socket(queue[0]['link'], 6)
+            curr_song_duration = queue[0]['duration']
+            curr_song_ID = queue[0]['time_added']
+            curr_song_link = queue[0]['link']
+            curr_song_start = time.time()
+            next_song_sent = False
+            next_song_link = False
 
         # If song is over, update queue by removing first element and updating indices
-        if time.time() - song_start_time > song_duration:
+        if time.time() - curr_song_start > curr_song_duration:
             queue = queue[1:]
             for song in queue:
                 song['index'] -= 1
             
             # Update state variables for queue checking
-            next_song_valid = False
-            song_start_time = time.time()
-            song_duration = queue[0]['duration']
+            next_song_sent = False
+            curr_song_start = time.time()
+            curr_song_duration = queue[0]['duration']
 
+    # Edge case: The only song left on queue was skipped, so skip any playing song
+    send_link_socket(curr_song_link, 3)
     queue_handling = False
     return
 
@@ -117,7 +148,8 @@ def add_song_queue(link=None):
         return {'message': 'Invalid link given'}
     timestamp, title, duration, yt_link, filepath, thumbnail = data
 
-    obj = {'title': title, 'duration': duration, 'link': yt_link, 'thumbnail': thumbnail, 'index': len(queue)}
+    obj = {'title': title, 'duration': duration, 'link': yt_link, 
+           'thumbnail': thumbnail, 'index': len(queue), 'time_added': time.time()}
     queue.append(obj)
 
     # If queue has length now and was not being handled, start handler

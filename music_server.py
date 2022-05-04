@@ -115,7 +115,7 @@ def try_recv_web(conn, first_recv=False):
       3 - current song skip
       4 - next song skip
       5 - denote msg is next song
-      6 - play from beginning"""
+      6 - denote msg is current song (play from beginning)"""
 
    global curr_song
    global next_song
@@ -140,7 +140,22 @@ def try_recv_web(conn, first_recv=False):
          link_data = retrieve_data(msg)
          samples = convert_mp3_to_wav(link_data[4])
          
+         print("Received message")
+         print("Command: " + str(command))
+         print("Message: " + str(msg))
          # PLay song from latest point
+         if command == 1:
+            return True
+         elif command == 2:
+            return True
+         elif command == 3:
+            with song_cv:
+               reset_song_i()
+               curr_song = next_song
+               next_song = 0
+               song_cv.notify()
+         elif command == 4:
+            next_song = 0
          if command == 5:
             next_song = int_array_to_bytes(samples, len=2)
          elif command == 6:
