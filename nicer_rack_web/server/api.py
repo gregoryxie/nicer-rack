@@ -219,3 +219,19 @@ def remove_song_queue(link=None, index=None):
         queue_lock.notify()
         
     return {'title': title, 'duration': duration, 'link': yt_link, 'thumbnail': thumbnail}
+
+@app.route('/play/<link>')
+@app.route('/play/')
+def play(link=None):
+    if not link:
+        return {'message': 'No link given'}
+    send_link_socket(link, 1) 
+    return {'message': 'Started playing song'}
+
+@app.route('/pause/<link>')
+@app.route('/pause/')
+def pause(link=None):
+    if not link:
+        return {'message': 'No link given'}
+    send_link_socket(link, 2) 
+    return {'message': 'Paused song'}

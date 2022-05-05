@@ -154,9 +154,9 @@ def try_recv_web(conn, first_recv=False):
          print("Message: " + str(msg))
          # PLay song from latest point
          if command == 1:
-            return True
+            paused = False
          elif command == 2:
-            return True
+            paused = True
          elif command == 3:
             paused = True
             with song_cv:

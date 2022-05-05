@@ -42,6 +42,26 @@ const Song = (props) => {
     });
   }
 
+  // called when currently playing song play button is clicked
+  function handlePlay(event) {
+    var play_song_url = 'http://localhost:5000/play/' + props.link;
+    fetch(play_song_url)
+    .then(function (response) {
+      console.log("STARTED PLAYING SONG");
+      return response.json();
+    });
+  }
+
+  // called when currently playing song play button is clicked
+  function handlePause(event) {
+    var pause_song_url = 'http://localhost:5000/pause/' + props.link;
+    fetch(pause_song_url)
+    .then(function (response) {
+      console.log("PAUSED SONG");
+      return response.json();
+    });
+  }
+
   return (
     <div className="Song">
         <div className="content">
@@ -57,6 +77,16 @@ const Song = (props) => {
                 <button onClick={handleQueueRemove} className="Song-submit-container">
                   <p>Remove from Queue!</p>
                 </button> 
+              )}
+              {props.index == 0 && (
+                <button onClick={handlePlay} className="Song-submit-container">
+                  <p>Play</p>
+                </button>
+              )}
+              {props.index == 0 && (
+                <button onClick={handlePause} className="Song-submit-container">
+                  <p>Pause</p>
+                </button>
               )}
             </div> 
           </div>
