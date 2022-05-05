@@ -78,12 +78,12 @@ const Song = (props) => {
                   <p>Remove from Queue!</p>
                 </button> 
               )}
-              {props.index == 0 && (
+              {props.queue_index == 0 && (
                 <button onClick={handlePlay} className="Song-submit-container">
                   <p>Play</p>
                 </button>
               )}
-              {props.index == 0 && (
+              {props.queue_index == 0 && (
                 <button onClick={handlePause} className="Song-submit-container">
                   <p>Pause</p>
                 </button>

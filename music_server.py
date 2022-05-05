@@ -146,8 +146,9 @@ def try_recv_web(conn, first_recv=False):
          msg = msg_bytes.decode("utf-8")
 
          # Get the link data and get the samples using the audio path
-         link_data = retrieve_data(msg)
-         samples = convert_mp3_to_wav(link_data[4])
+         if command in [5,6]:
+            link_data = retrieve_data(msg)
+            samples = convert_mp3_to_wav(link_data[4])
          
          print("Received message")
          print("Command: " + str(command))
