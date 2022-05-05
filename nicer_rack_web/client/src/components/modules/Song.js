@@ -10,6 +10,8 @@ import "./Song.css";
  *@param {String} thumbnailURL
  *@param {Integer} queue_index
  *@param {Boolean} display
+ *@param {Integer} songs
+ *@param {Function} alterSongs
  *
  * @returns QueueItem given paramters
  */
@@ -20,6 +22,7 @@ const Song = (props) => {
     var add_queue_url = 'http://localhost:5000/add_song_queue/' + props.link;
     fetch(add_queue_url)
     .then(function (response) {
+      props.alterSongs(props.songs + 1);
       console.log("ADDED SONG TO QUEUE");
       return response.json();
     });
@@ -31,6 +34,7 @@ const Song = (props) => {
     var remove_queue_url = 'http://localhost:5000/remove_song_queue/' + props.link + '/' + props.queue_index;
     fetch(remove_queue_url)
     .then(function (response) {
+      props.alterSongs(props.songs - 1);
       console.log("REMOVED SONG TO QUEUE");
       return response.json();
     }).then((text) => {

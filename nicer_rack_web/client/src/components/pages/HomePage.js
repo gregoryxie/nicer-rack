@@ -1,14 +1,16 @@
-import React, { useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import Search from "../modules/Search.js";
 import Queue from "../modules/Queue.js";
 import Display from "../modules/Display.js";
 
 const HomePage = () => {
+  const [songs, setSongs] = useState(0);
+
   return (
     <>
       <Search />
-      <Queue />
-      <Display />
+      <Queue songs={songs} alterSongs={setSongs}/>
+      <Display songs={songs} alterSongs={setSongs}/>
     </>
   );
 }

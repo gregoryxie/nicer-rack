@@ -6,7 +6,7 @@ import Song from "./Song.js"
 import "../../utilities.css";
 import "./Display.css";
 
-const Display = () => {
+const Display = (props) => {
   const [items, setItems] = useState([{}]);
 
   useEffect(() => {
@@ -21,7 +21,7 @@ const Display = () => {
       }
       return () => mounted = false;
     });
-  }, []);
+  }, [props.songs]);
 
   console.log(items);
 
@@ -31,7 +31,8 @@ const Display = () => {
       {items.length > 0 && (
         <ul>
           {items.map(item => (
-            <Song title={item.title} link={item.link} thumbnailURL={item.thumbnail} queue_index={item.index} display={true} />
+            <Song title={item.title} link={item.link} thumbnailURL={item.thumbnail} 
+            queue_index={item.index} display={true} songs={props.songs} alterSongs={props.alterSongs}/>
           ))}
         </ul>
       )}

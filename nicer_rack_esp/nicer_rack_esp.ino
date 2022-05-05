@@ -16,7 +16,7 @@ const char PASSWORD[] = "";
 WiFiUDP udp;
 WiFiClient client;
 const int udp_port = 3333;                            // Local UDP port
-IPAddress remote = IPAddress(10, 31, 52, 17);        // UDP server IP address, hardcoded for now
+IPAddress remote = IPAddress(10, 29, 91, 198);        // UDP server IP address, hardcoded for now
 const int remote_port = 56971;                        // UDP server port, hardcoded
 
 const int AUDIO_BUF_SIZE = 100;         // number of audio blocks in queue
@@ -39,10 +39,10 @@ const i2s_port_t I2S_NUM = I2S_NUM_0;    // ESP32 has 2 I2S peripherals
 const uint32_t I2S_SAMPLE_RATE = 44100;
 const uint8_t I2S_BUF_COUNT = 8;
 const int I2S_MCK_IO = GPIO_NUM_0;       // I2S pin definitions
-const int I2S_BCK_IO = GPIO_NUM_25;
-const int I2S_WS_IO = GPIO_NUM_32;
-const int I2S_DO_IO = GPIO_NUM_33;
-const int I2S_DI_IO = GPIO_NUM_26;
+const int I2S_BCK_IO = GPIO_NUM_17;
+const int I2S_WS_IO = GPIO_NUM_4;
+const int I2S_DO_IO = GPIO_NUM_16;
+const int I2S_DI_IO = I2S_PIN_NO_CHANGE;
 QueueHandle_t i2s_queue_handle;
 
 const int out_pin = 12;
@@ -145,6 +145,7 @@ void commTaskFunc(void * pvParameters) {
    start_stream();
 
    while (true) {
+      // Serial.printf("comm task %d\r\n", millis());
       to_send = false;
 
       // Receive data from TCP server
@@ -203,6 +204,7 @@ void audioTaskFunc(void * pvParameters) {
       //    audio_buffer.write((char*) test_buffer, AUDIO_BUF_SIZE);
       //  }
 
+      // Serial.printf("audio task %d\r\n", millis());      
       wrote_i2s = false;
       // Deal with all the messages in the queue
       while (uxQueueMessagesWaiting(i2s_queue_handle) > 0) {

@@ -20,14 +20,16 @@ esp_timeout = 120 # seconds
 
 samples_per_second = 44000
 samples_per_loop = 500 # Also the size of the UDP message, MTU max 1300 bytes per message
-song_rate = 3   # Rate at which song is streamed, should be > 1
+song_rate = 5   # Rate at which song is streamed, should be > 1
 loop_time = samples_per_loop/samples_per_second/song_rate
 bytes_per_sample = 2
 bytes_per_loop = samples_per_loop*bytes_per_sample
 
 # print(loop_time)
 
+paused = False
 curr_song = 0
+next_song = []
 song_cv = threading.Condition()
 
 # try to receive bytes from ESP, try to send
@@ -70,41 +72,62 @@ def try_recv_esp(conn, client_addr, first_recv=False):
       return True
 
 def try_send_esp(conn, client_addr):
+   global clients
+   start = None
+   temp_clients = None
    with clients_lock:
       start = clients[client_addr]['song_i']
+      temp_clients = clients
+      clients_lock.notify()
 
-      if clients[client_addr]['state'] == 1 or clients[client_addr]['state'] == 2:
-         clients[client_addr]['done'] = False
-         return True
+   if temp_clients[client_addr]['state'] == 1 or temp_clients[client_addr]['state'] == 2:
+      temp_clients[client_addr]['done'] = False
+      return True
 
+   if not paused:
       if start + bytes_per_loop > len(curr_song):
          with song_cv:
             data_bytes = curr_song[start:]
             song_cv.notify()
-         clients[client_addr]['song_i'] = len(curr_song)
-         clients[client_addr]['done'] = True
+         temp_clients[client_addr]['song_i'] = len(curr_song)
+         temp_clients[client_addr]['done'] = True
       else:
          with song_cv:
             data_bytes = curr_song[start:start + bytes_per_loop]
             song_cv.notify()
-         clients[client_addr]['song_i'] += bytes_per_loop
-         clients[client_addr]['done'] = False
+         temp_clients[client_addr]['song_i'] += bytes_per_loop
+         temp_clients[client_addr]['done'] = False
 
       try:
          conn.send(data_bytes)      #TCP
          # sock.sendto(data_bytes, client_addr)       # UDP
       except BrokenPipeError:
-         clients_lock.notify()
          return False
       except BlockingIOError:
          pass
 
+   with clients_lock:
+      clients = temp_clients
       clients_lock.notify()
-      return True
+   return True
    
   # try to receive bytes from ESP
 def try_recv_web(conn, first_recv=False):
+   """COMMUNICATION PROTOCOL: Messages from the API server should always be of the 
+   form: [msg_length (1 byte), command (1 byte), msg (msg_length - 1 bytes)]. With this,
+   the first byte says how long the remaining message is, the next byte is a command,
+   and the msg is the Youtube unique link descriptor.
+   Commands:
+      1 - play
+      2 - pause
+      3 - current song skip
+      4 - next song skip
+      5 - denote msg is next song
+      6 - denote msg is current song (play from beginning)"""
+
+   global paused
    global curr_song
+   global next_song
    try:
       if first_recv:
          data = conn.recv(1)
@@ -115,26 +138,44 @@ def try_recv_web(conn, first_recv=False):
       # Very reasonable assumption
       int_data = int.from_bytes(data, "big")
       if (int_data):
-         print("Received this message from webserver:")
-         data = conn.recv(int_data, socket.MSG_DONTWAIT)
+         command_bytes = conn.recv(1, socket.MSG_DONTWAIT)
+         msg_bytes = conn.recv(int_data, socket.MSG_DONTWAIT)
 
-         # This is the youtube url argument of the song to play.
-         link = data.decode("utf-8")
-         print(link)
-         print("Extracted this data from message:")
-         data = retrieve_data(link)
-         print(data)
+         # Get the command and message
+         command = int.from_bytes(command_bytes, "big")
+         msg = msg_bytes.decode("utf-8")
 
-         path = data[4]
-         samples = convert_mp3_to_wav(path)
+         # Get the link data and get the samples using the audio path
+         link_data = retrieve_data(msg)
+         samples = convert_mp3_to_wav(link_data[4])
          
-         with song_cv:
-            curr_song = int_array_to_bytes(samples, len=2)
-            song_cv.notify()
-         reset_song_i()
-         # print("Length of samples: " + str(len(samples)))
-         # print("100 samples: ")
-         # print(samples[100000:100100])
+         print("Received message")
+         print("Command: " + str(command))
+         print("Message: " + str(msg))
+         # PLay song from latest point
+         if command == 1:
+            return True
+         elif command == 2:
+            return True
+         elif command == 3:
+            paused = True
+            with song_cv:
+               curr_song = next_song
+               next_song = int_array_to_bytes(np.zeros(44100))
+               song_cv.notify()
+            reset_song_i()
+            paused = False
+         elif command == 4:
+            next_song = int_array_to_bytes(np.zeros(44100))
+         if command == 5:
+            next_song = int_array_to_bytes(samples, len=2)
+         elif command == 6:
+            paused = True
+            with song_cv:
+               curr_song = int_array_to_bytes(samples, len=2)
+               song_cv.notify()
+            reset_song_i()
+            paused = False
 
       return True
    except TimeoutError as e:
@@ -245,9 +286,11 @@ def int_array_to_bytes(data, len=2):
 
 def run_server():
    global curr_song
+   global next_song
 
    x_axis = np.linspace(0, 440*2*np.pi, 44100)
    curr_song = int_array_to_bytes(2**14*np.sin(x_axis))
+   next_song = int_array_to_bytes(np.zeros(44100))
    # x_axis = np.linspace(0, 1, 10000)
    # curr_song = int_array_to_bytes(2**15*x_axis)
    # curr_song = int_array_to_bytes(np.ones(44000, dtype=np.int16)*2**14)
@@ -285,9 +328,8 @@ def run_server():
          clients_lock.notify()
       if done:
          reset_song_i()
-         # break
-         # go to next song
-      
+         curr_song = next_song
+         next_song = int_array_to_bytes(np.zeros(44100))
 
 
 if __name__ == "__main__":
