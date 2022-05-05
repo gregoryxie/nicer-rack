@@ -39,6 +39,13 @@ def retrieve_data(link):
         current = c.execute('''SELECT * FROM info_db WHERE link=?;''',(link,)).fetchone()
     return current
 
+# given text: return row data if matches artist/song, else None
+def retrieve_songs(text):
+    with sqlite3.connect(get_db_path(info_db)) as c:
+        c.execute("""CREATE TABLE IF NOT EXISTS info_db (time_ timestamp, title text, length real, link text, filepath text, thumnbnail text);""")
+        current = c.execute('''SELECT * FROM info_db WHERE title LIKE '%' || ? || '%';''',(text,)).fetchall()
+    return current
+
 # returns tuples of all rows in db
 def retrieve_all_data():
     with sqlite3.connect(get_db_path(info_db)) as c:

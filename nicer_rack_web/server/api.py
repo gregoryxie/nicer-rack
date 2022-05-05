@@ -3,7 +3,7 @@ from flask import Flask
 from flask import jsonify
 from flask_cors import CORS
 from ...link_handler import download_link_data
-from ...data_handler import insert_data, retrieve_all_data, retrieve_data
+from ...data_handler import insert_data, retrieve_all_data, retrieve_data, retrieve_songs
 import threading
 import time
 
@@ -161,6 +161,25 @@ def get_queue():
         curr_queue = queue
         queue_lock.notify()
     return jsonify(curr_queue)
+
+@app.route('/search_song/<text>')
+@app.route('/search_song/')
+def search_song(text=None):
+    global queue
+    global queue_handling
+    if not text:
+        return {'message': 'No text given'}
+    data = retrieve_songs(text)
+    if not data:
+        return {'message': 'No songs found'}
+    data = [{"timestamp": item[0],
+            "title": item[1],
+            "duration": item[2],
+            "link": item[3],
+            "filepath": item[4],
+            "thumbnail": item[5]} for item in data]
+    return {'message': 'All song info successfully retrived', 'data': data}
+    
 
 @app.route('/add_song_queue/<link>')
 @app.route('/add_song_queue/')

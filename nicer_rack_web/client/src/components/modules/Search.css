@@ -15,3 +15,11 @@
   background-color: rgb(255, 165, 0);
   width: 5vh;
 }
+
+.Song-container {
+  display: flex;
+  align-items: center;
+  flex-direction: column;
+  padding-top: 10vh;
+  gap: 2vh;
+}
