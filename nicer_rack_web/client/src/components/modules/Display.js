@@ -18,10 +18,11 @@ const Display = (props) => {
     }).then(function (list) {
       if (mounted) {
         setItems(list.data);
+        props.alterLoaded(list.data.length);
       }
       return () => mounted = false;
     });
-  }, [props.songs]);
+  }, [props.loaded]);
 
   console.log(items);
 

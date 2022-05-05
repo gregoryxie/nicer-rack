@@ -7,7 +7,7 @@ import "./Download.css";
 /**
  * Download Box.
  */
-const Download = () => {
+const Download = (props) => {
   const DOWNLOAD_ENTRY_DEFAULT_TEXT = "Download...";
 
   const [downloadBuffer, setDownloadBuffer] = useState(""); // stores text during search
@@ -34,6 +34,7 @@ const Download = () => {
     // Request API to download the link to the server
     fetch(add_url)
     .then(function (response) {
+      props.alterLoaded(props.loaded + 1);
       return response.json();
     }).then(function (text) {
       console.log("DOWNLOAD_LINK");
