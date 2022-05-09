@@ -108,7 +108,12 @@ def handle_queue():
                 for song in queue:
                     song['index'] -= 1
                 
-                # Update state variables for queue checking
+                # If queue empty after song ends, end queue handling
+                if not len(queue):
+                    queue_lock.notify()
+                    break
+
+                # Update state variables for queue checking for next song
                 next_song_sent = False
                 next_song_link = None
                 curr_song_start = time.time()

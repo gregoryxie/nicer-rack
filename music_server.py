@@ -30,7 +30,9 @@ bytes_per_loop = samples_per_loop*bytes_per_sample
 paused = False
 curr_song = 0
 next_song = []
+command_queue = []   # Queue for commands, so that each command will be run sequentially as received
 song_cv = threading.Condition()
+command_lock = threading.Condition()
 
 # try to receive bytes from ESP, try to send
 def try_recv_esp(conn, client_addr, first_recv=False):
@@ -116,18 +118,8 @@ def try_recv_web(conn, first_recv=False):
    """COMMUNICATION PROTOCOL: Messages from the API server should always be of the 
    form: [msg_length (1 byte), command (1 byte), msg (msg_length - 1 bytes)]. With this,
    the first byte says how long the remaining message is, the next byte is a command,
-   and the msg is the Youtube unique link descriptor.
-   Commands:
-      1 - play
-      2 - pause
-      3 - current song skip
-      4 - next song skip
-      5 - denote msg is next song
-      6 - denote msg is current song (play from beginning)"""
-
-   global paused
-   global curr_song
-   global next_song
+   and the msg is the Youtube unique link descriptor."""
+   global command_queue
    try:
       if first_recv:
          data = conn.recv(1)
@@ -145,39 +137,12 @@ def try_recv_web(conn, first_recv=False):
          command = int.from_bytes(command_bytes, "big")
          msg = msg_bytes.decode("utf-8")
 
-         # Get the link data and get the samples using the audio path
-         if command in [5,6]:
-            link_data = retrieve_data(msg)
-            samples = convert_mp3_to_wav(link_data[4])
-         
-         print("Received message")
-         print("Command: " + str(command))
-         print("Message: " + str(msg))
-         # PLay song from latest point
-         if command == 1:
-            paused = False
-         elif command == 2:
-            paused = True
-         elif command == 3:
-            paused = True
-            with song_cv:
-               curr_song = next_song
-               next_song = int_array_to_bytes(np.zeros(44100))
-               song_cv.notify()
-            reset_song_i()
-            paused = False
-         elif command == 4:
-            next_song = int_array_to_bytes(np.zeros(44100))
-         if command == 5:
-            next_song = int_array_to_bytes(samples, len=2)
-         elif command == 6:
-            paused = True
-            with song_cv:
-               curr_song = int_array_to_bytes(samples, len=2)
-               song_cv.notify()
-            reset_song_i()
-            paused = False
+         # print("Received message")
+         # print("Command: " + str(command))
+         # print("Message: " + str(msg))
 
+         with command_lock:
+            command_queue.append({"cmd": command, "msg": msg})
       return True
    except TimeoutError as e:
       print("socket timeout")
@@ -189,6 +154,64 @@ def try_recv_web(conn, first_recv=False):
       print(e)
       return True 
       
+def handle_command_queue():
+   """Handle the command queue, which is only added to through socket messages.
+   Commands:
+      1 - play
+      2 - pause
+      3 - current song skip
+      4 - next song skip
+      5 - denote msg is next song
+      6 - denote msg is current song (play from beginning)"""
+   global paused
+   global curr_song
+   global next_song
+   global command_queue
+   
+   # Acquire lock for command queue, and take off first command if it exists
+   with command_lock:
+      if not command_queue:
+         return True
+      cmd = command_queue[0]["cmd"]
+      msg = command_queue[0]["msg"]
+      command_queue = command_queue[1:]
+
+      # print("Running command")
+      # print("Command: " + str(cmd))
+      # print("Message: " + str(msg))
+
+   # If audio samples needed, retrieve from link
+   if cmd in [5,6]:
+      link_data = retrieve_data(msg)
+      samples = convert_mp3_to_wav(link_data[4])
+   
+   # Per command, change curr_song, next_song, or paused variables
+   if cmd == 1:
+      paused = False
+   elif cmd == 2:
+      paused = True
+   elif cmd == 3:
+      paused = True
+      with song_cv:
+         curr_song = next_song
+         next_song = int_array_to_bytes(np.zeros(44100))
+         song_cv.notify()
+      reset_song_i()
+      paused = False
+   elif cmd == 4:
+      next_song = int_array_to_bytes(np.zeros(44100))
+   if cmd == 5:
+      next_song = int_array_to_bytes(samples, len=2)
+   elif cmd == 6:
+      paused = True
+      with song_cv:
+         curr_song = int_array_to_bytes(samples, len=2)
+         song_cv.notify()
+      reset_song_i()
+      paused = False
+
+   return True
+
 def check_timeout_esp(conn, client_addr):
    now = datetime.now()
    with clients_lock:
@@ -236,11 +259,14 @@ def web_serve_func(conn):
       while True:
          while (datetime.now() - start).total_seconds() < loop_time:
             time.sleep(loop_time/20)
-         
          start = datetime.now()
 
          if not try_recv_web(conn):
             break
+
+         if not handle_command_queue():
+            break
+         
 
 def server_thread_func():
    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
