@@ -20,3 +20,15 @@ You can navigate the filesystem the way any computer works. Some potentially use
 * `sudo reboot`
 * `sudo shutdown -h now` will safely shut down the Raspi
 * `wget [url]` will download the file at the given URL to the Raspi, in whatever your working directory is.
+
+## Website
+
+The main page of this site is located (on default) at `/var/www/html/index.html`. You can look at the config documentation at `/usr/share/doc/apache2/README.Debian.gz`. By default, Debian does not allow access through the web browser to any file apart of those located in `/var/www`, **public_html** directories (when enabled) and `/usr/share` (for web applications). If your site is using a web document root located elsewhere (such as in `/srv`) you may need to whitelist your document root directory in `/etc/apache2/apache2.conf`.
+
+If you're having connection timeout issues or otherwise want to change server settings, go look at the `etc/apache2/apache2.conf` file.
+
+
+Changes to directory path:
+* `/etc/apache2/sites-available/000-default.conf`, change DocumentRoot to correct filepath for index.html file
+* Currently /var/www/nicer-rack/nicer_rack_web/client/dist
+* restart apache server using `service apache2 restart`
