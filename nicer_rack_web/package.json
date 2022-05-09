@@ -2,7 +2,7 @@
   "name": "nicer-rack",
   "version": "1.0.0",
   "private": true,
-  "proxy": "http://localhost:5000",
+  "proxy": "http://nicerack.mit.edu/",
   "description": "",
   "main": "server/server.js",
   "scripts": {

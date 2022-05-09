@@ -26,7 +26,7 @@ const Search = (props) => {
     console.log(searchBuffer);
 
     let mounted = true;
-    var add_url = 'http://localhost:5000/search_song/' + searchBuffer;
+    var add_url = 'http://nicerack.mit.edu/search_song/' + searchBuffer;
 
     fetch(add_url)
     .then(function (response) {
