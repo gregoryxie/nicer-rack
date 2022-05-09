@@ -49,7 +49,7 @@ module.exports = {
     contentBase: "./client/dist",
     hot: true,
     proxy: {
-      "/api": "http://nicerack.mit.edu/",
+      "/api": "http://localhost:5000",
     },
   },
 };
