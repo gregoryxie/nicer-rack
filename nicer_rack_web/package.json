@@ -4,9 +4,9 @@
   "private": true,
   "proxy": "http://nicerack.mit.edu/",
   "description": "",
-  "main": "server/server.js",
+  "main": "./server/server.js",
   "scripts": {
-    "hotloader": "webpack serve --config ./webpack.config.js --mode development --port 3000",
+    "hotloader": "webpack serve --config ./webpack.config.js --host nicerack.mit.edu --mode development --port 3000",
     "start": "react-scripts start",
     "start-api": "cd server && flask run"
   },

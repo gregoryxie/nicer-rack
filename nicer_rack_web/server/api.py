@@ -16,7 +16,7 @@ NEXT_SONG_RATIO = 0.8   # Sends next song in queue after current song is 80% don
 
 app = Flask(__name__)
 # NEED THIS FOR WEBSERVER TO FLASK SERVER COMMUNICATION
-CORS(app,resources={r"/*":{"http://localhost:5000/":"*","http://localhost":"*"}})
+CORS(app,resources={r"/*":{"http://nicerack.mit.edu/":"*","http://nicerack.mit.edu/":"*"}})
 
 # Connects to TCP Server socket and sends the length of
 # the link as 1 byte, and then sends the link over the socket.
