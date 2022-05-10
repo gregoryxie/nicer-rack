@@ -15,8 +15,9 @@ queue_lock = threading.Condition()
 NEXT_SONG_RATIO = 0.8   # Sends next song in queue after current song is 80% done playing
 
 app = Flask(__name__)
+app.run(host='0.0.0.0')
 # NEED THIS FOR WEBSERVER TO FLASK SERVER COMMUNICATION
-CORS(app,resources={r"/*":{"http://nicerack.mit.edu/":"*","http://nicerack.mit.edu/":"*"}})
+CORS(app,resources={r"/*":{"http://127.0.0.1:5000/":"*","http://127.0.0.1":"*"}})
 
 # Connects to TCP Server socket and sends the length of
 # the link as 1 byte, and then sends the link over the socket.

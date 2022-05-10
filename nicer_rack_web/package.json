@@ -8,7 +8,7 @@
   "scripts": {
     "hotloader": "webpack serve --config ./webpack.config.js --host nicerack.mit.edu --mode development --port 3000",
     "start": "react-scripts start",
-    "start-api": "cd server && flask run"
+    "start-api": "cd server && flask run --host=127.0.0.1"
   },
   "repository": {
     "type": "git",
