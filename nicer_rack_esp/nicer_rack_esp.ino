@@ -8,15 +8,14 @@
 #include "esp_types.h"
 #include "esp_err.h"
 #include "esp_check.h"
-// #include <ESPm.h>
 
-const char NETWORK[] = "MIT";
+const char NETWORK[] = "EECS_Labs";
 const char PASSWORD[] = "";
 
 WiFiUDP udp;
 WiFiClient client;
 const int udp_port = 3333;                            // Local UDP port
-IPAddress remote = IPAddress(10, 29, 91, 198);        // UDP server IP address, hardcoded for now
+IPAddress remote = IPAddress(18, 25, 28, 149);        // UDP server IP address, hardcoded for now
 const int remote_port = 56971;                        // UDP server port, hardcoded
 
 const int AUDIO_BUF_SIZE = 100;         // number of audio blocks in queue
@@ -27,13 +26,12 @@ char transfer_buffer[TRANSFER_BUF_SIZE];           // Buffer to transfer audio d
 size_t bytes_written = 0;
 int bytes_read = 0;
 
+// Struct to represent a block of audio data, stored in the audio buffer. 
 typedef struct AudioBlockStruct {
   int len;
   char buf[AUDIO_BLOCK_SIZE];
 } AudioBlock;
 
-// int16_t test_buffer[AUDIO_BUF_SIZE];
-// int test_buf_i = 0;
 
 const i2s_port_t I2S_NUM = I2S_NUM_0;    // ESP32 has 2 I2S peripherals
 const uint32_t I2S_SAMPLE_RATE = 44100;
@@ -57,6 +55,10 @@ unsigned long time_last_heartbeat = 0;
 int heartbeat_period_ms = 3000;        // Heardbeat message period (send state)
 
 esp_err_t initI2S() {
+   /*
+      Try to initialize the ESP32's I2S peripheral
+      Returns: ESP_OK if initialization was successful
+   */
    i2s_config_t i2s_config = {
       .mode = (i2s_mode_t) (I2S_MODE_MASTER | I2S_MODE_TX),
       .sample_rate =  I2S_SAMPLE_RATE,
@@ -80,11 +82,17 @@ esp_err_t initI2S() {
 
    ESP_RETURN_ON_ERROR(i2s_driver_install(I2S_NUM, &i2s_config, 100, &i2s_queue_handle), "", "i2s config failed");
    ESP_RETURN_ON_ERROR(i2s_set_pin(I2S_NUM, &i2s_pin_cfg), "", "i2s pin config failed");
-   ESP_RETURN_ON_ERROR(i2s_set_sample_rates(I2S_NUM, 44100), "", "i2s sample rate config failed");
+   ESP_RETURN_ON_ERROR(i2s_set_sample_rates(I2S_NUM, I2S_SAMPLE_RATE), "", "i2s sample rate config failed");
    return ESP_OK;
 }
 
 esp_err_t startWIFI() {
+   /*
+      Try to initialize the ESP32's Wifi peripheral and connect to the hardcoded Wifi network.
+      Resets the ESP32 if connecting to Wifi was not successful. 
+      
+      Returns: ESP_OK if initialization was successful
+   */
    WiFi.begin(NETWORK, PASSWORD);
    uint8_t count = 0;
    Serial.printf("Attempting to connect to %s \r\n", NETWORK);
@@ -109,6 +117,12 @@ esp_err_t startWIFI() {
 }
 
 esp_err_t startTCP() {
+   /*
+      Try to start a TCP connection to the hardcoded IP and port.
+      Resets the ESP32 if connecting was not successful. 
+      
+      Returns: ESP_OK if initialization was successful
+   */
    uint8_t count = 0;
    Serial.printf("Attempting to connect to %s:%d \r\n", remote.toString(), remote_port);
    delay(100);
@@ -127,6 +141,11 @@ esp_err_t startTCP() {
 }
 
 esp_err_t startUDP() {
+   /*
+      Try to start a UDP connection to the hardcoded IP and port. UNUSED
+      
+      Returns: ESP_OK if initialization was successful
+   */
    uint8_t count = 0;
    Serial.printf("Starting UDP, port: %d\r\n", udp_port);
    while (udp.begin(WiFi.localIP(),udp_port) != 1 && count < 12) {
@@ -139,13 +158,22 @@ esp_err_t startUDP() {
 }
 
 void commTaskFunc(void * pvParameters) {
+   /*
+      Function that is run by the communication task. 
+
+      Receives data from the audio server over TCP and puts it into the audio buffer.
+      Sends heartbeat messages to the audio server.
+      Switches client state depending on how full the audio buffer is, and communicates
+      client state to the audio server.
+
+      Runs forever.
+   */
    enum StreamStates state_to_send;
    bool to_send = false;
 
    start_stream();
 
    while (true) {
-      // Serial.printf("comm task %d\r\n", millis());
       to_send = false;
 
       // Receive data from TCP server
@@ -156,6 +184,7 @@ void commTaskFunc(void * pvParameters) {
          xQueueSend(audio_buffer_handle, &audio_block, portMAX_DELAY);
       }
 
+      // Update client state
       switch (state) {
          case Paused:
             if (buf_room > AUDIO_BUF_SIZE*0.7) {
@@ -173,6 +202,7 @@ void commTaskFunc(void * pvParameters) {
             break;
       }
 
+      // Send client state and heartbeat message to audio server
       if (to_send || millis() - time_last_heartbeat > heartbeat_period_ms) {
          to_send = false;
          time_last_heartbeat = millis();
@@ -194,24 +224,29 @@ void commTaskFunc(void * pvParameters) {
 }
 
 void audioTaskFunc(void * pvParameters) {
+   /*
+      Function that is run by the audio task. 
+      Moves data from the audio buffer into the I2S DMA buffers.
+
+      Runs forever.
+   */
+
    i2s_event_t i2s_evt;
    AudioBlock audio_block;
 
    bool wrote_i2s = false;
 
-   while (true) {
-      //  if (audio_buffer.available() == 0) {
-      //    audio_buffer.write((char*) test_buffer, AUDIO_BUF_SIZE);
-      //  }
+   while (true) {    
 
-      // Serial.printf("audio task %d\r\n", millis());      
       wrote_i2s = false;
       // Deal with all the messages in the queue
       while (uxQueueMessagesWaiting(i2s_queue_handle) > 0) {
          if (xQueuePeek(i2s_queue_handle, &i2s_evt, 0) == pdTRUE){ // Doesn't remove item from queue
             switch (i2s_evt.type) {
+               // Deal with a TX done event, which is put on the queue when a DMA buffer has finished sending
                case I2S_EVENT_TX_DONE:
                   while (bytes_written != bytes_read) {
+                     // Didn't finish writing the data that was read from the audio buffer before
                      i2s_write(I2S_NUM, audio_block.buf+bytes_written, bytes_read-bytes_written, &bytes_written, 1);
                   }
                   wrote_i2s = true;
@@ -221,27 +256,27 @@ void audioTaskFunc(void * pvParameters) {
                         bytes_read = audio_block.len;
 
                         if (bytes_read == 0) {
-                        bytes_written = 0;
-                        //   Serial.println("BUF EMPTY");
-                        break;
+                           // Audio buffer was empty
+                           bytes_written = 0;
+                           break;
                         }
                         bytes_written = 0;
                         i2s_write(I2S_NUM, audio_block.buf, bytes_read, &bytes_written, 1);
                         if (bytes_written == 0) {
-                           // Serial.println("DMA BUF FULL");
+                           // DMA buffer was full
                            break;
                         }
                         wrote_i2s = true;
                      } else {
+                        // Was unable to receive data from audio buffer 
                         bytes_written = 0;
-                        //   Serial.println("BUF EMPTY");
                         break;
                      }
                   }
                   if (wrote_i2s) {xQueueReceive(i2s_queue_handle, &i2s_evt, portMAX_DELAY);}
                   break;
                default:
-                  xQueueReceive(i2s_queue_handle, &i2s_evt, portMAX_DELAY);   // Ignore every other message for now
+                  xQueueReceive(i2s_queue_handle, &i2s_evt, portMAX_DELAY);   // Ignore every other message
                   break;
             }
          }
@@ -251,10 +286,13 @@ void audioTaskFunc(void * pvParameters) {
 }
 
 void setup() {
+   // Set up serial
    Serial.begin(57600);
 
+   // Set up digital pin for fast debugging
    pinMode(out_pin, OUTPUT);
 
+   // Start WiFi, TCP, I2S
    Serial.println("Starting WiFi");
    if (startWIFI() == ESP_OK) {
       Serial.println("WiFi started!");
@@ -268,15 +306,7 @@ void setup() {
       Serial.println("I2S started!");
    } else {ESP.restart();}
 
-   // for (int i = 0; i < AUDIO_BUF_SIZE; i++) {
-   //    test_buffer[i] = 32768 * i / AUDIO_BUF_SIZE;
-   // }
-
-   // i2s_event_t tx_done = {
-   //    .type = I2S_EVENT_TX_DONE,
-   //    .size = 0,
-   // };
-
+   // Create the audio buffer and start the audio and communication tasks
    audio_buffer_handle = xQueueCreate(AUDIO_BUF_SIZE, sizeof(AudioBlock));
 
    BaseType_t task_made;
@@ -309,26 +339,27 @@ void setup() {
       ESP.restart();
    }
 
-   
 }
 
 void start_stream() {
+   /*
+      Send a 0 to the audio server, which tells the audio server to stream data
+   */
    client.write((uint8_t) 0);
 }
 
 void pause_stream() {
+   /*
+      Send a 1 to the audio server, which tells the audio server to stop streaming data
+   */
    client.write((uint8_t) 1);
 }
 
 void stop_stream() {
+   /*
+      Send a 2 to the audio server, which tells the audio server to stop sending data to the client
+   */
    client.write((uint8_t) 2);
-}
-
-void print_buf_ints(int len) {
-   for (int i = 0; i < len; i++) {
-      Serial.printf("%i,", transfer_buffer[i]);
-   }
-   Serial.println();
 }
 
 void loop() {
