@@ -1,16 +1,19 @@
 import React from "react";
 import { useState } from "react";
 
+import Song from "./Song.js"
+
 import "../../utilities.css";
 import "./Search.css";
 
 /**
  * Search Box.
  */
-const Search = () => {
-  const SEARCH_ENTRY_DEFAULT_TEXT = "Search";
+const Search = (props) => {
+  const SEARCH_ENTRY_DEFAULT_TEXT = "Search...";
 
   const [searchBuffer, setSearchBuffer] = useState(""); // stores text during search
+  const [songs, setSongs] = useState([]);
 
   // called whenever the user types in the search box
   function handleChange(event) {
@@ -22,41 +25,48 @@ const Search = () => {
     event.preventDefault();
     console.log(searchBuffer);
 
-    var yt_query = "";
-    if (searchBuffer.startsWith("https://www.youtube.com") || searchBuffer.startsWith("www.youtube.com") || searchBuffer.startsWith("youtube.com")) {
-      yt_query = searchBuffer.split("youtube.com/watch?v=")[1];
-    }
+    let mounted = true;
+    var add_url = 'http://localhost:5000/search_song/' + searchBuffer;
 
-    var url = 'http://localhost:5000/add_link/' + yt_query;
-    fetch(url
-      // headers: {
-      //   'Accept': 'application/json',
-      //   'Content-Type': 'application/json',
-      //   'Access-Control-Allow-Methods': '*',
-      //   'Access-Control-Allow-Headers': '*'
-      // },
-    )
+    fetch(add_url)
     .then(function (response) {
       return response.json();
-    }).then(function (text) {
-      console.log("GET RESPONSE");
-      console.log(text)
+    }).then(function (list) {
+      if (mounted) {
+        setSongs(list.data)
+      }
+      return () => mounted = false;
     });
   }
 
   return (
-    <div className="Search-container">
-      <input
-        className="Search-bar-container"
-        type="text"
-        placeholder={SEARCH_ENTRY_DEFAULT_TEXT}
-        value={searchBuffer}
-        onChange={handleChange}
-      ></input>
-      <button onClick={handleSubmit} className="Submit-container">
-        <i class="fa fa-search"></i>
-      </button>
-    </div>
+    <div>
+      <div className="Search-container">
+        <input
+          className="Search-bar-container"
+          type="text"
+          placeholder={SEARCH_ENTRY_DEFAULT_TEXT}
+          value={searchBuffer}
+          onChange={handleChange}
+        ></input>
+        <button onClick={handleSubmit} className="Submit-container">
+          <i class="fa fa-search"></i>
+        </button>
+      </div>
+      {songs ? (
+      <div className="Song-container">
+        {songs.length > 0 && (
+          <ul>
+            {songs.map(song => (
+              <Song title={song.title} link={song.link} thumbnailURL={song.thumbnail} 
+              queue_index={song.index} display={true} songs={props.songs} alterSongs={props.alterSongs}/>
+            ))}
+          </ul>
+        )}
+    </div> ) : (
+      <div></div>
+    )}
+  </div>
   );
 };
 

@@ -1,6 +1,8 @@
 pytube3
 pytube
 npm
+pydub
 flask
 flask_cors
 python-dotenv
+librosa

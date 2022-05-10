@@ -6,32 +6,42 @@ import Song from "./Song.js"
 import "../../utilities.css";
 import "./Queue.css";
 
-const Queue = () => {
+const Queue = (props) => {
   const [items, setItems] = useState([{}]);
 
+  function getQueue() {
+    var url = 'http://localhost:5000/get_queue/';
+    fetch(url)
+    .then(function (response) {
+      return response.json();
+    }).then(function (list) {
+      setItems(list);
+      props.alterSongs(list.length);
+    }); 
+  }
+
   useEffect(() => {
-    // api call to get queue
-    // length of queue = ?
-    const item1 = {'title': 'roach - always sadge', 'thumbnail_url' : 'http://fuckoff'}
-    const item2 = {'title': 'tirstn - i wuv monsters', 'thumbnail_url' : 'http://fuckoff'}
-    const item3 = {'title': 'hebo - axolol head', 'thumbnail_url' : 'http://fuckoff'}
-    setItems([item1, item2, item3]);
-  }, []);
+    getQueue();
+    const interval = setInterval(() => {
+      getQueue();
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [props.songs]);
 
-  const createQueue = () => {
-    const queue = [];
-    for (let i = 0; i < items.length; i++) {
-      queue.push(<Song title={items[i].title} thumbnailURL={items[i].thumbnail_url} />);
-    }
-    return queue;
-  };
-
-  const queue = createQueue();
+  
+  console.log(items);
 
   return (
     <div className="Queue-container">
       <div className="Queue-title">Queue</div>
-      {queue}
+      {items.length > 0 && (
+        <ul>
+          {items.map(item => (
+            <Song title={item.title} link={item.link} thumbnailURL={item.thumbnail} 
+            queue_index={item.index} display={false} songs={props.songs} alterSongs={props.alterSongs}/>
+          ))}
+        </ul>
+      )}
     </div>
   )
 }
