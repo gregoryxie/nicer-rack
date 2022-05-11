@@ -254,12 +254,18 @@ def client_serve_func(conn, client_addr):
          start = datetime.now()
 
          if not try_recv_esp(conn, client_addr):
+            with clients_lock:
+                  clients.pop(client_addr)
+                  clients_lock.notify()
             break
 
          if check_timeout_esp(conn, client_addr):
             break
 
          if not try_send_esp(conn, client_addr):
+            with clients_lock:
+                  clients.pop(client_addr)
+                  clients_lock.notify()
             break
 
 def web_serve_func(conn):
