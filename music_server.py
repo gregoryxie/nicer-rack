@@ -9,6 +9,7 @@ import numpy as np
 import math
 import queue
 
+
 HOST = '' # bind to a bunch of stuff? idk lol
 PORT = 56971 # random port between 49152–65535
 PORT_WEB = 8080

@@ -6,8 +6,10 @@ import os
 import pytube
 import wave
 import struct
-import librosa
 from pydub import AudioSegment
+import sys
+sys.path.append("/usr/local/lib/python3.9/dist-packages")
+import librosa
 
 MAX_LENGTH = 10 # maximum supported video length in minutes
 
