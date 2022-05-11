@@ -10,7 +10,7 @@ const Queue = (props) => {
   const [items, setItems] = useState([{}]);
 
   function getQueue() {
-    var url = 'http://localhost:5000/get_queue/';
+    var url = 'http://nicerack.mit.edu:5000/get_queue/';
     fetch(url)
     .then(function (response) {
       return response.json();

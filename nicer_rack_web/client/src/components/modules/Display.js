@@ -11,7 +11,7 @@ const Display = (props) => {
 
   useEffect(() => {
     let mounted = true;
-    var url = 'http://localhost:5000/all_song_info/';
+    var url = 'http://nicerack.mit.edu:5000/all_song_info/';
     fetch(url)
     .then(function (response) {
       return response.json();

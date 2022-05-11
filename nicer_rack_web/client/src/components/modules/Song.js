@@ -19,7 +19,7 @@ const Song = (props) => {
   // called when song is clicked to add to queue
   function handleQueueAdd(event) {
     // Request API to add song to the queue
-    var add_queue_url = 'http://localhost:5000/add_song_queue/' + props.link;
+    var add_queue_url = 'http://nicerack.mit.edu:5000/add_song_queue/' + props.link;
     fetch(add_queue_url)
     .then(function (response) {
       props.alterSongs(props.songs + 1);
@@ -31,7 +31,7 @@ const Song = (props) => {
   // called when song is clicked to remove from queue
   function handleQueueRemove(event) {
     // Request API to remove the song from the queue
-    var remove_queue_url = 'http://localhost:5000/remove_song_queue/' + props.link + '/' + props.queue_index;
+    var remove_queue_url = 'http://nicerack.mit.edu:5000/remove_song_queue/' + props.link + '/' + props.queue_index;
     fetch(remove_queue_url)
     .then(function (response) {
       props.alterSongs(props.songs - 1);
@@ -44,7 +44,7 @@ const Song = (props) => {
 
   // called when currently playing song play button is clicked
   function handlePlay(event) {
-    var play_song_url = 'http://localhost:5000/play/' + props.link;
+    var play_song_url = 'http://nicerack.mit.edu:5000/play/' + props.link;
     fetch(play_song_url)
     .then(function (response) {
       console.log("STARTED PLAYING SONG");

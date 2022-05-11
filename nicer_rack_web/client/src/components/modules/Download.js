@@ -29,7 +29,7 @@ const Download = (props) => {
     }
 
     // Create url variables for API requests
-    var add_url = 'http://localhost:5000/download_link/' + yt_query;
+    var add_url = 'http://nicerack.mit.edu:5000/download_link/' + yt_query;
 
     // Request API to download the link to the server
     fetch(add_url)
