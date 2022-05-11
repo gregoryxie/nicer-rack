@@ -1,0 +1,3 @@
+(sym_lib_table
+  (lib (name NiceRackAtHome-rescue)(type Legacy)(uri ${KIPRJMOD}/NiceRackAtHome-rescue.lib)(options "")(descr ""))
+)
