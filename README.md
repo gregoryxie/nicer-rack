@@ -2,7 +2,7 @@
 
 hopefully nicer and not worser
 
-View [NiceRack](nicerack.mit.edu:3000)
+View [NiceRack](http://nicerack.mit.edu:3000/)
 
 ## Installation
 
