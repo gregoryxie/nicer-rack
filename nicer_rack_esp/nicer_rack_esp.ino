@@ -9,13 +9,13 @@
 #include "esp_err.h"
 #include "esp_check.h"
 
-const char NETWORK[] = "EECS_Labs";
+const char NETWORK[] = "MIT";
 const char PASSWORD[] = "";
 
 WiFiUDP udp;
 WiFiClient client;
 const int udp_port = 3333;                            // Local UDP port
-IPAddress remote = IPAddress(18, 25, 28, 149);        // UDP server IP address, hardcoded for now
+IPAddress remote = IPAddress(10, 31, 82, 147);        // UDP server IP address, hardcoded for now
 const int remote_port = 56971;                        // UDP server port, hardcoded
 
 const int AUDIO_BUF_SIZE = 100;         // number of audio blocks in queue
@@ -96,22 +96,15 @@ esp_err_t startWIFI() {
    WiFi.begin(NETWORK, PASSWORD);
    uint8_t count = 0;
    Serial.printf("Attempting to connect to %s \r\n", NETWORK);
-   while (WiFi.status() != WL_CONNECTED && count < 12) {
+   while (WiFi.status() != WL_CONNECTED && count < 10) {
       delay(500);
       Serial.print(".");
       count++;
    }
-   delay(2000);
-   if (WiFi.isConnected()) {
-      Serial.println("CONNECTED!");
-      Serial.printf("%d:%d:%d:%d (%s) (%s)\n", WiFi.localIP()[3], WiFi.localIP()[2],
-                     WiFi.localIP()[1], WiFi.localIP()[0],
-                     WiFi.macAddress().c_str() , WiFi.SSID().c_str());
-      delay(500);
-   } else {
-      Serial.println("Failed to connect, restarting");
-      Serial.println(WiFi.status());
-      ESP.restart();
+   delay(1000);
+   if (!WiFi.isConnected()) {
+      Serial.println("Wifi not connected");
+      return ESP_FAIL;
    }
    return ESP_OK;
 }
@@ -126,14 +119,15 @@ esp_err_t startTCP() {
    uint8_t count = 0;
    Serial.printf("Attempting to connect to %s:%d \r\n", remote.toString(), remote_port);
    delay(100);
-   while (!client.connect(remote, remote_port) && count < 12) {
+   while (!client.connect(remote, remote_port) && count < 10) {
       delay(500);
       Serial.print(".");
       count++;
    }
+   delay(1000);
    if (!client.connected()) {
-      Serial.println("Failed to connect, restarting");
-      ESP.restart();
+      Serial.println("TCP not connected");
+      return ESP_FAIL;
    }
 
    client.setNoDelay(true);   // No delay when sending packets
@@ -237,7 +231,6 @@ void audioTaskFunc(void * pvParameters) {
    bool wrote_i2s = false;
 
    while (true) {    
-
       wrote_i2s = false;
       // Deal with all the messages in the queue
       while (uxQueueMessagesWaiting(i2s_queue_handle) > 0) {
