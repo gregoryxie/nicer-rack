@@ -9,8 +9,7 @@ import numpy as np
 import math
 import queue
 
-
-HOST = '' # bind to a bunch of stuff? idk lol
+HOST = '' # bind to all available 
 PORT = 56971 # random port between 49152–65535
 PORT_WEB = 8080
 
@@ -26,8 +25,6 @@ loop_time = samples_per_loop/samples_per_second/song_rate
 bytes_per_sample = 2
 bytes_per_loop = samples_per_loop*bytes_per_sample
 
-# print(loop_time)
-
 paused = False
 curr_song = 0
 next_song = []
@@ -35,8 +32,12 @@ command_queue = []   # Queue for commands, so that each command will be run sequ
 song_cv = threading.Condition()
 command_lock = threading.Condition()
 
-# try to receive bytes from ESP, try to send
 def try_recv_esp(conn, client_addr, first_recv=False):
+   """
+   Try to recieve data from the ESP32, if the ESP32 has not been seen before,
+   add it to list of clients. Otherwise, update the ESP32s state based on the 
+   message receieved.
+   """
    try:
       if first_recv:
          data = conn.recv(1)
@@ -59,8 +60,6 @@ def try_recv_esp(conn, client_addr, first_recv=False):
             print("PAUSE")
          if clients[client_addr]['state'] == 0:
             print("GO")
-
-         # print(clients)
          
          clients_lock.notify()
       return True
@@ -75,6 +74,10 @@ def try_recv_esp(conn, client_addr, first_recv=False):
       return True
 
 def try_send_esp(conn, client_addr):
+   """
+   Try to send a block of data to the ESP32 from the current song. 
+   Does not send data if the ESP32 is in the "pause" or "stop" state
+   """
    global clients
    start = None
    temp_clients = None
@@ -214,6 +217,10 @@ def handle_command_queue():
    return True
 
 def check_timeout_esp(conn, client_addr):
+   """
+   Check to see if an ESP32 has timed out. If we have not received a message
+   from the ESP in esp_timeout seconds, we remove it from the list of clients
+   """
    now = datetime.now()
    with clients_lock:
       last_seen = clients[client_addr]['last_seen']
@@ -229,6 +236,11 @@ def check_timeout_esp(conn, client_addr):
    return False
 
 def client_serve_func(conn, client_addr):
+   """
+   Function to serve a ESP32 client forever
+   Tries to receive data from the ESP, checks if it has timed out,
+   and then tries to send song data to the ESP. 
+   """
    start = datetime.now()
 
    with conn:
@@ -242,15 +254,26 @@ def client_serve_func(conn, client_addr):
          start = datetime.now()
 
          if not try_recv_esp(conn, client_addr):
+            with clients_lock:
+                  clients.pop(client_addr)
+                  clients_lock.notify()
             break
 
          if check_timeout_esp(conn, client_addr):
             break
 
          if not try_send_esp(conn, client_addr):
+            with clients_lock:
+                  clients.pop(client_addr)
+                  clients_lock.notify()
             break
 
 def web_serve_func(conn):
+   """
+   Function to serve the web server forever
+   Tries to receive data from the web socket, and updates
+   the current song, next song, etc.
+   """
    start = datetime.now()
 
    with conn:
@@ -270,6 +293,11 @@ def web_serve_func(conn):
          
 
 def server_thread_func():
+   """
+   Function that runs the audio server. Spawns
+   more threads to serve each client that connects to 
+   the socket. One ESP32 is one client.
+   """
    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
       s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
       s.bind((HOST, PORT))
@@ -283,6 +311,11 @@ def server_thread_func():
          client_thread.start()
 
 def web_thread_func():
+   """
+   Function that runs the web server socket. Spawns
+   more threads to serve each client that connects to 
+   the socket. There should only be one client that connects!
+   """
    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
       s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
       s.bind((HOST, PORT_WEB))
@@ -296,6 +329,11 @@ def web_thread_func():
          web_thread.start()
 
 def reset_song_i():
+   """
+   Reset the current index of all ESP32s for the song
+   When sending is started again, all client serve threads
+   start from the beginning of the current song. 
+   """
    with clients_lock:
       for client_addr in clients.keys():
          clients[client_addr]['song_i'] = 0
@@ -316,13 +354,8 @@ def run_server():
    global curr_song
    global next_song
 
-   x_axis = np.linspace(0, 440*2*np.pi, 44100)
-   curr_song = int_array_to_bytes(2**14*np.sin(x_axis))
+   curr_song = int_array_to_bytes(np.zeros(44100))
    next_song = int_array_to_bytes(np.zeros(44100))
-   # x_axis = np.linspace(0, 1, 10000)
-   # curr_song = int_array_to_bytes(2**15*x_axis)
-   # curr_song = int_array_to_bytes(np.ones(44000, dtype=np.int16)*2**14)
-   # curr_song = bytes([0, 64, 32, 64]*22000)
 
    # Thread for ESP communication
    server_thread = threading.Thread(target=server_thread_func)
@@ -351,6 +384,7 @@ def run_server():
          print(clients)
          count = 0
 
+      # Switch to the next song if all the client threads have finished sending.
       with clients_lock:
          done = np.prod([clients[client_addr]["done"] for client_addr in clients.keys()])
          clients_lock.notify()
